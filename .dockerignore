@@ -1,0 +1,15 @@
+# Build context is the repository root (the Maven reactor needs the parent POM).
+# Keep it small: only the wrapper, POMs and module sources are needed.
+**/target/
+.git/
+.github/
+.claude/
+.idea/
+.vscode/
+*.iml
+.env
+specs/
+docs/
+deploy/
+observability/
+contracts/

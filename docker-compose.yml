@@ -2,6 +2,7 @@
 #
 #   docker compose up -d        # start PostgreSQL, MongoDB and Kafka
 #   docker compose ps           # every service should report "healthy"
+#   docker compose --profile apps up -d --build   # also build and run both services
 #
 # Credentials are local-only defaults. Override them by copying .env.example to .env.
 
@@ -67,6 +68,25 @@ services:
       timeout: 10s
       retries: 10
       start_period: 15s
+
+  # Application services, only with: docker compose --profile apps up -d --build (FND-2.3)
+  dispatch-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: dispatch-service/Dockerfile
+    image: fuel-dispatch/dispatch-service:local
+    ports:
+      - "8081:8081"
+
+  tracking-service:
+    profiles: [apps]
+    build:
+      context: .
+      dockerfile: tracking-service/Dockerfile
+    image: fuel-dispatch/tracking-service:local
+    ports:
+      - "8082:8082"
 
 volumes:
   postgres-data:

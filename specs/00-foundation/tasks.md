@@ -20,7 +20,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `docker compose up -d` → `docker compose ps` shows postgres, mongo, kafka healthy.
   - Code: `docker-compose.yml`, `.env.example`.
   - _Req: FND-2.1, FND-2.2, FND-2.4_
-- [ ] **00.5** Dockerfiles and `apps` profile
+- [x] **00.5** Dockerfiles and `apps` profile
   - Test: `docker compose --profile apps up -d --build`; both health endpoints return `UP`.
   - Code: multi-stage Dockerfiles, compose services under profile `apps`.
   - _Req: FND-2.3_
