@@ -30,6 +30,18 @@ the lifecycle is encoded in `OrderStatus` so that allowed transitions live in on
 `java.time.Clock` is passed into `create` and each transition, so tests control time without
 mocks (`Clock.fixed`).
 
+### Aggregate and event details
+
+- `DispatchOrder.create(vessel, berth, fuelType, quantity, deliveryWindow, clock)`: a missing
+  order component throws `DomainValidationException`; a missing `clock` is a programming error
+  (`NullPointerException`). On creation `updatedAt` equals `createdAt`.
+- `domainEvents()` returns a read-only copy of the events registered and not yet pulled, so tests
+  (and task 01.4's "no event on invalid transition") can inspect them without clearing;
+  `pullDomainEvents()` (DOM-3.1) is the method the application layer uses.
+- Every event gets a random `eventId` (UUID) and `occurredAt` from the clock (DOM-3.2).
+  `OrderCreated` carries the full order snapshot — `status`, `vessel`, `berth`, `fuelType`,
+  `quantity`, `deliveryWindow` — so consumers can build their view without calling the service.
+
 ### Value object validation details
 
 - `null` for any component is rejected with `DomainValidationException` (never a bare NPE), so

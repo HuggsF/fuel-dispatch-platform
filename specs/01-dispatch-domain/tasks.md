@@ -11,7 +11,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: parameterized test covering all 20 cells of the transition table.
   - Code: `OrderStatus`, `OrderAction`.
   - _Req: DOM-2.5_
-- [ ] **01.3** `DispatchOrder.create` and `OrderCreated`
+- [x] **01.3** `DispatchOrder.create` and `OrderCreated`
   - Test: creation sets id, `CREATED`, `createdAt` from `Clock.fixed`; registers one `OrderCreated`.
   - Code: aggregate, `DomainEvent` sealed interface, `OrderCreated`.
   - _Req: DOM-1.1, DOM-1.6, DOM-3.2_
