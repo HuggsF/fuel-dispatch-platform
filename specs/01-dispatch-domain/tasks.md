@@ -7,7 +7,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     (valid cases + each invalid boundary: 0, 10,000, 10,000.001, equal instants, 6/8-digit IMO…).
   - Code: records + `DomainValidationException`, `FuelType`, `OrderId`.
   - _Req: DOM-1.2, DOM-1.3, DOM-1.4, DOM-1.5, DOM-2.6, DOM-NF-2_
-- [ ] **01.2** `OrderStatus` transition table
+- [x] **01.2** `OrderStatus` transition table
   - Test: parameterized test covering all 20 cells of the transition table.
   - Code: `OrderStatus`, `OrderAction`.
   - _Req: DOM-2.5_

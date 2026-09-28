@@ -21,7 +21,7 @@ the lifecycle is encoded in `OrderStatus` so that allowed transitions live in on
 | `DeliveryWindow` | record (`Instant start`, `Instant end`) | `end` after `start` |
 | `CancellationReason` | record (`String value`) | Non-blank, ≤ 500 chars |
 | `OrderStatus` | enum | `canTransitionTo(OrderStatus)`; terminal flags |
-| `OrderAction` | enum | `APPROVE`, `DISPATCH`, `DELIVER`, `CANCEL` — used in error messages |
+| `OrderAction` | enum | `APPROVE`, `DISPATCH`, `DELIVER`, `CANCEL` — used in error messages; `targetStatus()` gives the status each action leads to |
 | `DomainEvent` | sealed interface | `eventId()`, `orderId()`, `occurredAt()` |
 | `OrderCreated`, `OrderApproved`, `OrderDispatched`, `OrderDelivered`, `OrderCancelled` | records implementing `DomainEvent` | Event payloads |
 | `DomainValidationException` | runtime exception | Invalid input (DOM-1.2–1.5, 2.6) |
@@ -42,6 +42,9 @@ mocks (`Clock.fixed`).
   (`1.50000` is valid). Accepted values are normalized to scale 3, so `7.5` equals `7.500`.
 
 ## Transition table (single source of truth in `OrderStatus`)
+
+A cell (from, action) is allowed iff `from.canTransitionTo(action.targetStatus())`; the result is
+`action.targetStatus()`.
 
 | From \ Action | APPROVE | DISPATCH | DELIVER | CANCEL |
 | --- | --- | --- | --- | --- |
