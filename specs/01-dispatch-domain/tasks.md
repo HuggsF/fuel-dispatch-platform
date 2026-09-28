@@ -2,7 +2,7 @@
 
 Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is green.
 
-- [ ] **01.1** Value objects
+- [x] **01.1** Value objects
   - Test: `QuantityTest`, `DeliveryWindowTest`, `VesselTest`, `BerthTest`, `CancellationReasonTest`
     (valid cases + each invalid boundary: 0, 10,000, 10,000.001, equal instants, 6/8-digit IMO…).
   - Code: records + `DomainValidationException`, `FuelType`, `OrderId`.

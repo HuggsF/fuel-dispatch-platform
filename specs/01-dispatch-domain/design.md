@@ -30,6 +30,17 @@ the lifecycle is encoded in `OrderStatus` so that allowed transitions live in on
 `java.time.Clock` is passed into `create` and each transition, so tests control time without
 mocks (`Clock.fixed`).
 
+### Value object validation details
+
+- `null` for any component is rejected with `DomainValidationException` (never a bare NPE), so
+  adapters can map every invalid input to the same error.
+- Text values are stored trimmed (`String.strip()`): vessel name, IMO, berth, cancellation reason.
+  The 500-character limit of `CancellationReason` applies to the trimmed value.
+- `Vessel.imo` must match `[0-9]{7}` (ASCII digits only; the IMO check digit is not validated).
+- `Quantity` rejects values with more than 3 significant decimal places (e.g. `1.2345`) instead of
+  rounding them — silently changing a fuel volume is not acceptable. Trailing zeros are ignored
+  (`1.50000` is valid). Accepted values are normalized to scale 3, so `7.5` equals `7.500`.
+
 ## Transition table (single source of truth in `OrderStatus`)
 
 | From \ Action | APPROVE | DISPATCH | DELIVER | CANCEL |
@@ -53,7 +64,7 @@ mocks (`Clock.fixed`).
 
 | Requirement IDs | Test class | Type |
 | --- | --- | --- |
-| DOM-1.2–1.5 | `QuantityTest`, `DeliveryWindowTest`, `VesselTest`, `BerthTest` | unit |
+| DOM-1.2–1.5 | `QuantityTest`, `DeliveryWindowTest`, `VesselTest`, `BerthTest` (+ `OrderIdTest`, `FuelTypeTest`) | unit |
 | DOM-1.1, 1.6, 2.x, 3.x | `DispatchOrderTest` (parameterized over the transition table) | unit |
 | DOM-2.6 | `CancellationReasonTest` | unit |
 | DOM-4.x | `HexagonalArchitectureTest` (ArchUnit) | unit |
