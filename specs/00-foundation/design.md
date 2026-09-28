@@ -17,7 +17,7 @@ health endpoint and the containers can be proven before any business code exists
 | dispatch-service | `dispatch-service/pom.xml`, `DispatchServiceApplication` | Starters: web, actuator, validation. Port 8081 |
 | tracking-service | `tracking-service/pom.xml`, `TrackingServiceApplication` | Starters: webflux, actuator. Port 8082 |
 | Smoke tests | `*ApplicationTest` in each module | `@SpringBootTest` + `/actuator/health` returns `UP` (FND-1.5) |
-| Compose | `docker-compose.yml`, `.env.example` | Services: `postgres`, `mongo`, `kafka` (image `apache/kafka`, KRaft single node), optional `kafka-ui`; apps under profile `apps` |
+| Compose | `docker-compose.yml`, `.env.example` | Services: `postgres`, `mongo`, `kafka` (image `apache/kafka`, KRaft single node); apps under profile `apps`. Kafka UI (optional) is added in phase 03, task 03.4 |
 | Dockerfiles | `*/Dockerfile` | Multi-stage: build with Maven + JDK 21, run on a JRE 21 image as non-root |
 | CI | `.github/workflows/ci.yml` | `actions/setup-java` (temurin 21, maven cache) → `./mvnw -B verify` |
 | PR template | `.github/pull_request_template.md` | Already created |

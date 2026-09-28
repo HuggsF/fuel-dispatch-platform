@@ -44,7 +44,7 @@ Slash commands for this workflow live in `.claude/commands/`:
 ```bash
 ./mvnw verify                       # build + all tests (Windows: mvnw.cmd verify)
 ./mvnw -pl dispatch-service test    # tests of one module
-docker compose up -d                # local infra (Postgres, MongoDB, Kafka, Prometheus, Grafana)
+docker compose up -d                # local infra (Postgres, MongoDB, Kafka; Prometheus + Grafana from phase 05)
 docker compose --profile apps up -d --build   # infra + both services
 ```
 

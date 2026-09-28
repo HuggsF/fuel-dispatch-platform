@@ -20,14 +20,12 @@ fuel-dispatch-platform/
 ├── docs/adr/                     # architecture decision records
 ├── docs/diagrams/
 ├── .claude/commands/             # spec workflow slash commands
-└── .github/                      # PR template, workflows (phase 06)
+└── .github/                      # PR template, CI (phase 00, hardened in 06), release workflow (phase 06)
 ```
 
 ## Base package
 
 `com.fueldispatch.dispatch` and `com.fueldispatch.tracking`.
-(Change `com.fueldispatch` to `io.github.<github-user>.fueldispatch` in phase 00 if preferred;
-update this file and the `package-info.java` files together.)
 
 ## Hexagonal layout (both services)
 
