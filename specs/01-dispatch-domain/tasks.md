@@ -23,7 +23,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: events returned in order, list cleared after pull; `rehydrate` restores state without events.
   - Code: methods on the aggregate.
   - _Req: DOM-3.1_
-- [ ] **01.6** ArchUnit guard
+- [x] **01.6** ArchUnit guard
   - Test: `HexagonalArchitectureTest` with the rules of `structure.md`.
   - Code: ArchUnit dependency (test scope).
   - _Req: DOM-4.1, DOM-4.2_
