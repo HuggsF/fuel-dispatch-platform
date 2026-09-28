@@ -53,7 +53,8 @@ shows how I plan and deliver.
 
 - **FND-4.1** THE SYSTEM SHALL have a GitHub Projects board with columns Backlog, Sprint, In
   progress, Review, Done.
-- **FND-4.2** THE SYSTEM SHALL have one milestone per phase and one issue per task in `tasks.md`.
+- **FND-4.2** THE SYSTEM SHALL have one milestone per phase, and one issue per task in a phase's
+  `tasks.md` created before that phase starts (phases 00–02 at project setup).
 - **FND-4.3** THE SYSTEM SHALL provide a PR template and a README skeleton.
 
 ## Out of scope
