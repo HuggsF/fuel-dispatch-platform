@@ -38,6 +38,14 @@ mocks (`Clock.fixed`).
 - `domainEvents()` returns a read-only copy of the events registered and not yet pulled, so tests
   (and task 01.4's "no event on invalid transition") can inspect them without clearing;
   `pullDomainEvents()` (DOM-3.1) is the method the application layer uses.
+- `DispatchOrder.rehydrate(id, vessel, berth, fuelType, quantity, deliveryWindow, status,
+  createdAt, updatedAt, cancellationReason)` rebuilds a persisted order and registers no events.
+  All components except `cancellationReason` are required (`DomainValidationException`), and
+  `cancellationReason` must be present for `CANCELLED` and `null` otherwise, so corrupt rows are
+  rejected instead of producing an order that breaks the invariants. `create` goes through the
+  same checks.
+- `pullDomainEvents()` returns an immutable list of the pending events in registration order and
+  clears them (DOM-3.1).
 - Transitions: `approve(clock)`, `dispatch(clock)`, `deliver(clock)`,
   `cancel(CancellationReason reason, clock)`. Each checks the transition table before touching any
   state, so a rejected call changes nothing (DOM-2.5). `cancel` rejects a missing reason with

@@ -355,4 +355,204 @@ class DispatchOrderTest {
             assertThat(order.status()).isEqualTo(OrderStatus.CREATED);
         }
     }
+
+    /** DOM-3.1: events are handed over once, in order. */
+    @Nested
+    class PullDomainEvents {
+
+        @Test
+        void pullDomainEvents_afterTransitions_returnsEventsInOrderAndClearsThem() {
+            DispatchOrder order = newOrder();
+            order.approve(CLOCK);
+
+            List<DomainEvent> pulled = order.pullDomainEvents();
+
+            assertThat(pulled)
+                    .satisfiesExactly(
+                            event -> assertThat(event).isInstanceOf(OrderCreated.class),
+                            event -> assertThat(event).isInstanceOf(OrderApproved.class));
+            assertThat(order.domainEvents()).isEmpty();
+            assertThat(order.pullDomainEvents()).isEmpty();
+        }
+
+        @Test
+        void pullDomainEvents_thenNewTransition_returnsOnlyTheNewEvent() {
+            DispatchOrder order = newOrder();
+            order.pullDomainEvents();
+
+            order.approve(CLOCK);
+
+            assertThat(order.pullDomainEvents()).singleElement().isInstanceOf(OrderApproved.class);
+        }
+
+        @Test
+        void pullDomainEvents_returnedList_isNotAffectedByLaterTransitions() {
+            DispatchOrder order = newOrder();
+            List<DomainEvent> pulled = order.pullDomainEvents();
+
+            order.approve(CLOCK);
+
+            assertThat(pulled).singleElement().isInstanceOf(OrderCreated.class);
+            assertThatThrownBy(() -> pulled.add(order.domainEvents().getFirst()))
+                    .isInstanceOf(UnsupportedOperationException.class);
+        }
+    }
+
+    /** Rebuilding a persisted order: state restored, no events registered. */
+    @Nested
+    class Rehydrate {
+
+        private static final OrderId ID = OrderId.newId();
+        private static final Instant UPDATED = NOW.plusSeconds(900);
+        private static final CancellationReason REASON = new CancellationReason("Vessel delayed");
+
+        private static DispatchOrder rehydrate(
+                OrderStatus status, CancellationReason cancellationReason) {
+            return DispatchOrder.rehydrate(
+                    ID,
+                    VESSEL,
+                    BERTH,
+                    FuelType.HFO,
+                    QUANTITY,
+                    WINDOW,
+                    status,
+                    NOW,
+                    UPDATED,
+                    cancellationReason);
+        }
+
+        @Test
+        void rehydrate_validState_restoresEveryFieldWithoutEvents() {
+            DispatchOrder order = rehydrate(OrderStatus.DISPATCHED, null);
+
+            assertThat(order.id()).isEqualTo(ID);
+            assertThat(order.vessel()).isEqualTo(VESSEL);
+            assertThat(order.berth()).isEqualTo(BERTH);
+            assertThat(order.fuelType()).isEqualTo(FuelType.HFO);
+            assertThat(order.quantity()).isEqualTo(QUANTITY);
+            assertThat(order.deliveryWindow()).isEqualTo(WINDOW);
+            assertThat(order.status()).isEqualTo(OrderStatus.DISPATCHED);
+            assertThat(order.createdAt()).isEqualTo(NOW);
+            assertThat(order.updatedAt()).isEqualTo(UPDATED);
+            assertThat(order.cancellationReason()).isEmpty();
+            assertThat(order.domainEvents()).isEmpty();
+        }
+
+        @Test
+        void rehydrate_cancelledWithReason_restoresReason() {
+            DispatchOrder order = rehydrate(OrderStatus.CANCELLED, REASON);
+
+            assertThat(order.status()).isEqualTo(OrderStatus.CANCELLED);
+            assertThat(order.cancellationReason()).contains(REASON);
+            assertThat(order.domainEvents()).isEmpty();
+        }
+
+        @Test
+        void rehydrate_thenTransition_registersOnlyTheNewEvent() {
+            DispatchOrder order = rehydrate(OrderStatus.APPROVED, null);
+
+            order.dispatch(CLOCK);
+
+            assertThat(order.status()).isEqualTo(OrderStatus.DISPATCHED);
+            assertThat(order.pullDomainEvents())
+                    .singleElement()
+                    .isInstanceOf(OrderDispatched.class);
+        }
+
+        @Test
+        void rehydrate_cancelledWithoutReason_throwsDomainValidationException() {
+            assertThatThrownBy(() -> rehydrate(OrderStatus.CANCELLED, null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("cancellation reason");
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = OrderStatus.class,
+                names = {"CREATED", "APPROVED", "DISPATCHED", "DELIVERED"})
+        void rehydrate_notCancelledWithReason_throwsDomainValidationException(OrderStatus status) {
+            assertThatThrownBy(() -> rehydrate(status, REASON))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("cancellation reason");
+        }
+
+        @Test
+        void rehydrate_missingId_throwsDomainValidationException() {
+            assertThatThrownBy(
+                            () ->
+                                    DispatchOrder.rehydrate(
+                                            null,
+                                            VESSEL,
+                                            BERTH,
+                                            FuelType.HFO,
+                                            QUANTITY,
+                                            WINDOW,
+                                            OrderStatus.CREATED,
+                                            NOW,
+                                            NOW,
+                                            null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("order id");
+        }
+
+        @Test
+        void rehydrate_missingStatus_throwsDomainValidationException() {
+            assertThatThrownBy(() -> rehydrate(null, null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("status");
+        }
+
+        @Test
+        void rehydrate_missingTimestamps_throwsDomainValidationException() {
+            assertThatThrownBy(
+                            () ->
+                                    DispatchOrder.rehydrate(
+                                            ID,
+                                            VESSEL,
+                                            BERTH,
+                                            FuelType.HFO,
+                                            QUANTITY,
+                                            WINDOW,
+                                            OrderStatus.CREATED,
+                                            null,
+                                            NOW,
+                                            null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("createdAt");
+            assertThatThrownBy(
+                            () ->
+                                    DispatchOrder.rehydrate(
+                                            ID,
+                                            VESSEL,
+                                            BERTH,
+                                            FuelType.HFO,
+                                            QUANTITY,
+                                            WINDOW,
+                                            OrderStatus.CREATED,
+                                            NOW,
+                                            null,
+                                            null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("updatedAt");
+        }
+
+        @Test
+        void rehydrate_missingOrderData_throwsDomainValidationException() {
+            assertThatThrownBy(
+                            () ->
+                                    DispatchOrder.rehydrate(
+                                            ID,
+                                            null,
+                                            BERTH,
+                                            FuelType.HFO,
+                                            QUANTITY,
+                                            WINDOW,
+                                            OrderStatus.CREATED,
+                                            NOW,
+                                            NOW,
+                                            null))
+                    .isInstanceOf(DomainValidationException.class)
+                    .hasMessageContaining("vessel");
+        }
+    }
 }

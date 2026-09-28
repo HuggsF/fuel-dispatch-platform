@@ -19,7 +19,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: each happy path + event; each invalid transition throws and leaves state and events untouched.
   - Code: transition methods, remaining event records, `InvalidOrderTransitionException`.
   - _Req: DOM-2.1, DOM-2.2, DOM-2.3, DOM-2.4, DOM-2.5, DOM-2.7_
-- [ ] **01.5** `pullDomainEvents` and `rehydrate`
+- [x] **01.5** `pullDomainEvents` and `rehydrate`
   - Test: events returned in order, list cleared after pull; `rehydrate` restores state without events.
   - Code: methods on the aggregate.
   - _Req: DOM-3.1_

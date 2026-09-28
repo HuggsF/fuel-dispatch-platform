@@ -35,7 +35,25 @@ public class DispatchOrder {
             DeliveryWindow deliveryWindow,
             OrderStatus status,
             Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt,
+            CancellationReason cancellationReason) {
+        requirePresent(id, "order id");
+        requirePresent(vessel, "vessel");
+        requirePresent(berth, "berth");
+        requirePresent(fuelType, "fuel type");
+        requirePresent(quantity, "quantity");
+        requirePresent(deliveryWindow, "delivery window");
+        requirePresent(status, "status");
+        requirePresent(createdAt, "createdAt");
+        requirePresent(updatedAt, "updatedAt");
+        if (status == OrderStatus.CANCELLED && cancellationReason == null) {
+            throw new DomainValidationException(
+                    "cancellation reason is required for a CANCELLED order");
+        }
+        if (status != OrderStatus.CANCELLED && cancellationReason != null) {
+            throw new DomainValidationException(
+                    "cancellation reason is only allowed for a CANCELLED order");
+        }
         this.id = id;
         this.vessel = vessel;
         this.berth = berth;
@@ -45,6 +63,7 @@ public class DispatchOrder {
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.cancellationReason = cancellationReason;
     }
 
     /** Registers a new order in status {@code CREATED} (DOM-1.1) and an {@link OrderCreated}. */
@@ -55,11 +74,6 @@ public class DispatchOrder {
             Quantity quantity,
             DeliveryWindow deliveryWindow,
             Clock clock) {
-        requirePresent(vessel, "vessel");
-        requirePresent(berth, "berth");
-        requirePresent(fuelType, "fuel type");
-        requirePresent(quantity, "quantity");
-        requirePresent(deliveryWindow, "delivery window");
         Objects.requireNonNull(clock, "clock");
 
         Instant now = clock.instant();
@@ -73,7 +87,8 @@ public class DispatchOrder {
                         deliveryWindow,
                         OrderStatus.CREATED,
                         now,
-                        now);
+                        now,
+                        null);
         order.domainEvents.add(
                 new OrderCreated(
                         UUID.randomUUID(),
@@ -86,6 +101,34 @@ public class DispatchOrder {
                         quantity,
                         deliveryWindow));
         return order;
+    }
+
+    /**
+     * Rebuilds a persisted order without registering events. {@code cancellationReason} must be
+     * present for a {@code CANCELLED} order and {@code null} otherwise.
+     */
+    public static DispatchOrder rehydrate(
+            OrderId id,
+            Vessel vessel,
+            Berth berth,
+            FuelType fuelType,
+            Quantity quantity,
+            DeliveryWindow deliveryWindow,
+            OrderStatus status,
+            Instant createdAt,
+            Instant updatedAt,
+            CancellationReason cancellationReason) {
+        return new DispatchOrder(
+                id,
+                vessel,
+                berth,
+                fuelType,
+                quantity,
+                deliveryWindow,
+                status,
+                createdAt,
+                updatedAt,
+                cancellationReason);
     }
 
     /** {@code CREATED -> APPROVED} (DOM-2.1). */
@@ -179,5 +222,12 @@ public class DispatchOrder {
     /** Read-only snapshot of the events registered and not yet pulled. */
     public List<DomainEvent> domainEvents() {
         return List.copyOf(domainEvents);
+    }
+
+    /** Returns the registered events in order and clears them (DOM-3.1). */
+    public List<DomainEvent> pullDomainEvents() {
+        List<DomainEvent> pulled = List.copyOf(domainEvents);
+        domainEvents.clear();
+        return pulled;
     }
 }
