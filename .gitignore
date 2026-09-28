@@ -11,8 +11,10 @@ target/
 .classpath
 .project
 .settings/
-bin/
-out/
+/bin/
+/*/bin/
+/out/
+/*/out/
 
 # OS
 .DS_Store
