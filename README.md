@@ -5,7 +5,8 @@ two Java 21 / Spring Boot microservices that communicate only through Kafka.
 
 > 🚧 Work in progress, built phase by phase with Spec-Driven Development. See [Roadmap](#roadmap).
 
-<!-- Badges: CI, coverage (phase 00 / 06) -->
+[![CI](https://github.com/HuggsF/fuel-dispatch-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/HuggsF/fuel-dispatch-platform/actions/workflows/ci.yml)
+<!-- Badges: coverage (phase 06) -->
 
 ## Architecture
 
