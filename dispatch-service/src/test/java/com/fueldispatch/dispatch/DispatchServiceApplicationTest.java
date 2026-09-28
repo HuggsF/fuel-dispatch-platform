@@ -18,7 +18,8 @@ class DispatchServiceApplicationTest {
 
     @Test
     void actuatorHealth_whenApplicationStarts_returnsUp() {
-        ResponseEntity<String> response = restTemplate.getForEntity("/actuator/health", String.class);
+        ResponseEntity<String> response =
+                restTemplate.getForEntity("/actuator/health", String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).contains("\"status\":\"UP\"");

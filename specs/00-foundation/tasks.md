@@ -12,7 +12,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     `/actuator/health` and assert `UP`.
   - Code: application classes, `application.yml` with ports 8081 / 8082.
   - _Req: FND-1.5_
-- [ ] **00.3** Build plugins: Surefire, Failsafe, JaCoCo, Spotless
+- [x] **00.3** Build plugins: Surefire, Failsafe, JaCoCo, Spotless
   - Test: a trivial `*IT` runs in `verify`; badly formatted code fails the build.
   - Code: `pluginManagement` in parent; plugins active in both modules.
   - _Req: FND-1.4_
