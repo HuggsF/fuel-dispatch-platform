@@ -37,11 +37,36 @@ Operator ──REST──▶ dispatch-service ──(outbox)──▶ Kafka: dis
 
 ## How to run
 
-_Filled in during phase 00._
+Prerequisites: JDK 21 and Docker (with Compose v2). Maven is not needed — use the wrapper.
+
+```bash
+./mvnw verify                                  # build + unit/integration tests + format check (Windows: mvnw.cmd verify)
+./mvnw spotless:apply                          # fix formatting before committing
+
+docker compose up -d                           # PostgreSQL, MongoDB, Kafka
+docker compose ps                              # every service should be "healthy"
+
+docker compose --profile apps up -d --build    # infrastructure + both services
+curl http://localhost:8081/actuator/health     # dispatch-service → {"status":"UP"}
+curl http://localhost:8082/actuator/health     # tracking-service → {"status":"UP"}
+
+docker compose --profile apps down             # stop everything (add -v to drop the data volumes)
+```
+
+| Component | Port |
+| --- | --- |
+| dispatch-service | 8081 |
+| tracking-service | 8082 |
+| PostgreSQL 16 | 5432 |
+| MongoDB 7 | 27017 |
+| Kafka (KRaft) | 9092 (from the host) · `kafka:19092` (inside the compose network) |
+
+Local credentials are development defaults in `docker-compose.yml`; override them by copying
+`.env.example` to `.env`.
 
 ## Roadmap
 
-- [ ] 00 Foundation
+- [x] 00 Foundation — Maven multi-module build, Docker Compose, CI, project board
 - [ ] 01 Dispatch domain
 - [ ] 02 Dispatch API
 - [ ] 03 Dispatch events (Kafka + outbox)

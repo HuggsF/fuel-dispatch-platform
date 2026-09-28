@@ -32,4 +32,4 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Create board, milestones 00–07, one issue per task of phases 00–02.
   - Write ADR `docs/adr/0001-maven-multi-module-monorepo.md`.
   - _Req: FND-4.1, FND-4.2, FND-4.3_
-- [ ] **00.8** Verify phase: `/spec-review 00` has no "missing" rows; README roadmap updated.
+- [x] **00.8** Verify phase: `/spec-review 00` has no "missing" rows; README roadmap updated.
