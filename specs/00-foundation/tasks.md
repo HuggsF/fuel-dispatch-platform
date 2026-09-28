@@ -24,7 +24,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `docker compose --profile apps up -d --build`; both health endpoints return `UP`.
   - Code: multi-stage Dockerfiles, compose services under profile `apps`.
   - _Req: FND-2.3_
-- [ ] **00.6** GitHub Actions CI
+- [x] **00.6** GitHub Actions CI
   - Test: push a branch; workflow green.
   - Code: `.github/workflows/ci.yml`; CI badge in README.
   - _Req: FND-3.1, FND-3.2_
