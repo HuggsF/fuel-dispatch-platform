@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -19,9 +20,10 @@ public class DispatchOrder {
     private final FuelType fuelType;
     private final Quantity quantity;
     private final DeliveryWindow deliveryWindow;
-    private final OrderStatus status;
+    private OrderStatus status;
     private final Instant createdAt;
-    private final Instant updatedAt;
+    private Instant updatedAt;
+    private CancellationReason cancellationReason;
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private DispatchOrder(
@@ -86,6 +88,47 @@ public class DispatchOrder {
         return order;
     }
 
+    /** {@code CREATED -> APPROVED} (DOM-2.1). */
+    public void approve(Clock clock) {
+        Instant now = transition(OrderAction.APPROVE, clock);
+        domainEvents.add(new OrderApproved(UUID.randomUUID(), id, now, status));
+    }
+
+    /** {@code APPROVED -> DISPATCHED} (DOM-2.2). */
+    public void dispatch(Clock clock) {
+        Instant now = transition(OrderAction.DISPATCH, clock);
+        domainEvents.add(new OrderDispatched(UUID.randomUUID(), id, now, status));
+    }
+
+    /** {@code DISPATCHED -> DELIVERED} (DOM-2.3). */
+    public void deliver(Clock clock) {
+        Instant now = transition(OrderAction.DELIVER, clock);
+        domainEvents.add(new OrderDelivered(UUID.randomUUID(), id, now, status));
+    }
+
+    /** {@code CREATED | APPROVED -> CANCELLED}, storing the reason (DOM-2.4). */
+    public void cancel(CancellationReason reason, Clock clock) {
+        requirePresent(reason, "cancellation reason");
+        Instant now = transition(OrderAction.CANCEL, clock);
+        cancellationReason = reason;
+        domainEvents.add(new OrderCancelled(UUID.randomUUID(), id, now, status, reason));
+    }
+
+    /**
+     * Checks the transition table (DOM-2.5) before touching any state, then moves to the action's
+     * target status and stamps {@code updatedAt} (DOM-2.7).
+     */
+    private Instant transition(OrderAction action, Clock clock) {
+        Objects.requireNonNull(clock, "clock");
+        if (!status.canTransitionTo(action.targetStatus())) {
+            throw new InvalidOrderTransitionException(status, action);
+        }
+        Instant now = clock.instant();
+        status = action.targetStatus();
+        updatedAt = now;
+        return now;
+    }
+
     private static void requirePresent(Object value, String name) {
         if (value == null) {
             throw new DomainValidationException(name + " is required");
@@ -126,6 +169,11 @@ public class DispatchOrder {
 
     public Instant updatedAt() {
         return updatedAt;
+    }
+
+    /** Present only once the order has been cancelled. */
+    public Optional<CancellationReason> cancellationReason() {
+        return Optional.ofNullable(cancellationReason);
     }
 
     /** Read-only snapshot of the events registered and not yet pulled. */

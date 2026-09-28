@@ -15,7 +15,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: creation sets id, `CREATED`, `createdAt` from `Clock.fixed`; registers one `OrderCreated`.
   - Code: aggregate, `DomainEvent` sealed interface, `OrderCreated`.
   - _Req: DOM-1.1, DOM-1.6, DOM-3.2_
-- [ ] **01.4** Transitions approve / dispatch / deliver / cancel
+- [x] **01.4** Transitions approve / dispatch / deliver / cancel
   - Test: each happy path + event; each invalid transition throws and leaves state and events untouched.
   - Code: transition methods, remaining event records, `InvalidOrderTransitionException`.
   - _Req: DOM-2.1, DOM-2.2, DOM-2.3, DOM-2.4, DOM-2.5, DOM-2.7_

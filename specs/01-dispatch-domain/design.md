@@ -38,9 +38,19 @@ mocks (`Clock.fixed`).
 - `domainEvents()` returns a read-only copy of the events registered and not yet pulled, so tests
   (and task 01.4's "no event on invalid transition") can inspect them without clearing;
   `pullDomainEvents()` (DOM-3.1) is the method the application layer uses.
+- Transitions: `approve(clock)`, `dispatch(clock)`, `deliver(clock)`,
+  `cancel(CancellationReason reason, clock)`. Each checks the transition table before touching any
+  state, so a rejected call changes nothing (DOM-2.5). `cancel` rejects a missing reason with
+  `DomainValidationException` before checking the transition; blank/too-long reasons are already
+  impossible because `CancellationReason` validates itself (DOM-2.6).
+  `cancellationReason()` returns `Optional<CancellationReason>`, present only once cancelled.
+- `InvalidOrderTransitionException` exposes `currentStatus()` and `action()`; its message is
+  `cannot <ACTION> an order in status <STATUS>`.
 - Every event gets a random `eventId` (UUID) and `occurredAt` from the clock (DOM-3.2).
   `OrderCreated` carries the full order snapshot — `status`, `vessel`, `berth`, `fuelType`,
   `quantity`, `deliveryWindow` — so consumers can build their view without calling the service.
+  `OrderApproved`, `OrderDispatched`, `OrderDelivered` carry the new `status`; `OrderCancelled`
+  also carries the `reason`.
 
 ### Value object validation details
 
