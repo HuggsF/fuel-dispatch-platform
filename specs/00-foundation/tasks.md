@@ -7,7 +7,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Code: `pom.xml` (parent), `dispatch-service/pom.xml`, `tracking-service/pom.xml`, wrapper files.
     Keep the existing `package-info.java` files.
   - _Req: FND-1.1, FND-1.2, FND-1.3_
-- [ ] **00.2** Spring Boot applications with health endpoint
+- [x] **00.2** Spring Boot applications with health endpoint
   - Test: `DispatchServiceApplicationTest` and `TrackingServiceApplicationTest` call
     `/actuator/health` and assert `UP`.
   - Code: application classes, `application.yml` with ports 8081 / 8082.

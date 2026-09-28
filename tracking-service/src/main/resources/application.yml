@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: tracking-service
+
+server:
+  port: 8082
