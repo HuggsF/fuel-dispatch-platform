@@ -16,7 +16,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: a trivial `*IT` runs in `verify`; badly formatted code fails the build.
   - Code: `pluginManagement` in parent; plugins active in both modules.
   - _Req: FND-1.4_
-- [ ] **00.4** Docker Compose infrastructure
+- [x] **00.4** Docker Compose infrastructure
   - Test: `docker compose up -d` → `docker compose ps` shows postgres, mongo, kafka healthy.
   - Code: `docker-compose.yml`, `.env.example`.
   - _Req: FND-2.1, FND-2.2, FND-2.4_
