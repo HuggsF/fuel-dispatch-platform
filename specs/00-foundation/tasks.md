@@ -2,7 +2,7 @@
 
 Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is green.
 
-- [ ] **00.1** Parent POM, modules and Maven Wrapper
+- [x] **00.1** Parent POM, modules and Maven Wrapper
   - Test: `./mvnw -v` and `./mvnw verify` succeed on an empty build.
   - Code: `pom.xml` (parent), `dispatch-service/pom.xml`, `tracking-service/pom.xml`, wrapper files.
     Keep the existing `package-info.java` files.
