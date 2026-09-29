@@ -55,7 +55,11 @@ class HexagonalArchitectureTest {
                     .resideInAnyPackage("java..", "..domain..", "..application..")
                     .allowEmptyShould(true);
 
-    /** Services may additionally use {@code @Service} and {@code @Transactional}, nothing else. */
+    /**
+     * Services may additionally use {@code @Service} and {@code @Transactional}, nothing else. The
+     * enums {@code Propagation} and {@code Isolation} are the types of {@code @Transactional}'s own
+     * attributes, so every use of the annotation depends on them.
+     */
     static final ArchRule APPLICATION_SERVICES_USE_ONLY_ALLOWED_FRAMEWORK_TYPES =
             classes()
                     .that()
@@ -66,7 +70,13 @@ class HexagonalArchitectureTest {
                                     .or(name("org.springframework.stereotype.Service"))
                                     .or(
                                             name(
-                                                    "org.springframework.transaction.annotation.Transactional")))
+                                                    "org.springframework.transaction.annotation.Transactional"))
+                                    .or(
+                                            name(
+                                                    "org.springframework.transaction.annotation.Propagation"))
+                                    .or(
+                                            name(
+                                                    "org.springframework.transaction.annotation.Isolation")))
                     .allowEmptyShould(true);
 
     /** Adapters talk to the application through its ports only. */
@@ -161,7 +171,7 @@ class HexagonalArchitectureTest {
         }
 
         @Test
-        void servicesRule_allowsServiceAnnotation() {
+        void servicesRule_allowsServiceAndTransactionalAnnotations() {
             JavaClasses cleanService = new ClassFileImporter().importClasses(CleanService.class);
 
             assertThatCode(

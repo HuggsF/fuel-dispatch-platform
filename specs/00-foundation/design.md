@@ -38,7 +38,7 @@ phase 02, so the app starts without PostgreSQL.
 | Requirement IDs | Test | Type |
 | --- | --- | --- |
 | FND-1.1–1.4 | `./mvnw verify` in CI | build |
-| FND-1.5 | `DispatchServiceApplicationTest`, `TrackingServiceApplicationTest` | Spring Boot test |
+| FND-1.5 | `DispatchServiceApplicationIT` (Testcontainers PostgreSQL since phase 02), `TrackingServiceApplicationTest` | Spring Boot test |
 | FND-2.x | Manual: `docker compose up -d && docker compose ps` all healthy | manual, documented in README |
 
 ## Traceability

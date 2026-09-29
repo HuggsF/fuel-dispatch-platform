@@ -1,6 +1,16 @@
 spring:
   application:
     name: dispatch-service
+  # Local defaults match docker-compose.yml; override with SPRING_DATASOURCE_URL/USERNAME/PASSWORD.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dispatch
+    username: dispatch
+    password: dispatch
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Flyway only (API-3.1).
+      ddl-auto: validate
 
 server:
   port: 8081
