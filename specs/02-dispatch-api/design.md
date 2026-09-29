@@ -21,6 +21,33 @@ Driving adapter (REST) → driving ports (use cases) → application services �
 | `DispatchOrderJpaEntity`, `SpringDataOrderRepository`, `JpaOrderRepositoryAdapter`, `OrderJpaMapper` | `adapter.out.persistence` | `@Version` column for optimistic locking |
 | `ClockConfig`, `UseCaseConfig` | `config` | Wiring |
 
+### Port signatures
+
+| Port | Method | Returns |
+| --- | --- | --- |
+| `CreateOrderUseCase` | `create(CreateOrderCommand)` | `DispatchOrder` |
+| `ChangeOrderStatusUseCase` | `changeStatus(ChangeStatusCommand)` | `DispatchOrder` |
+| `GetOrderQuery` | `get(OrderId)` | `DispatchOrder` (throws `OrderNotFoundException`) |
+| `ListOrdersQuery` | `list(OrderPageQuery)` | `OrderPage` |
+| `OrderRepository` | `save(DispatchOrder)` / `findById(OrderId)` / `findPage(Optional<OrderStatus>, int page, int size)` | `DispatchOrder` / `Optional<DispatchOrder>` / `OrderPage` |
+
+- Commands carry domain value objects (`Vessel`, `Berth`, `FuelType`, `Quantity`,
+  `DeliveryWindow`); the web adapter builds them from the DTO, so domain rule violations surface
+  as `DomainValidationException` → 400.
+- `ChangeStatusCommand(OrderId orderId, OrderAction action, CancellationReason reason)`: `reason`
+  is required when `action == CANCEL` and must be null otherwise (checked in the compact
+  constructor, `IllegalArgumentException`; a missing `orderId`/`action` is a `NullPointerException`).
+- `OrderPageQuery(OrderStatus status /* nullable */, int page, int size)`: `page >= 0`,
+  `1 <= size <= 100` (`IllegalArgumentException`); defaults (0, 20) are applied by the web adapter.
+- `OrderPage(List<DispatchOrder> items, int page, int size, long totalElements)` lives in
+  `application.port.out` and is also returned by `ListOrdersQuery` (no Spring Data types leak).
+- The service returns the aggregate returned by `OrderRepository.save`; adapters may depend on
+  `domain` (structure.md).
+- `OrderApplicationService` is a plain class (no `@Service`): `UseCaseConfig` registers it as a bean
+  once the persistence adapter exists, so the application context never needs a missing
+  `OrderRepository`. Commands are `@Transactional`, queries `@Transactional(readOnly = true)`
+  (API-3.3); `spring-tx` is added to `dispatch-service` for the annotation.
+
 ## Endpoints
 
 | Method | Path | Body | Success | Errors |
