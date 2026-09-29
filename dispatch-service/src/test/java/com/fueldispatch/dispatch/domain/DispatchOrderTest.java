@@ -293,6 +293,27 @@ class DispatchOrderTest {
                             event -> assertThat(event).isInstanceOf(OrderDelivered.class));
         }
 
+        // DOM-3.2
+
+        @ParameterizedTest
+        @EnumSource(
+                value = OrderStatus.class,
+                names = {"DELIVERED", "CANCELLED"})
+        void everyEvent_carriesItsStatusAndTheOrderData(OrderStatus lastStatus) {
+            DispatchOrder order = orderIn(lastStatus);
+
+            assertThat(order.domainEvents())
+                    .isNotEmpty()
+                    .allSatisfy(
+                            event -> {
+                                assertThat(event.vessel()).isEqualTo(VESSEL);
+                                assertThat(event.berth()).isEqualTo(BERTH);
+                                assertThat(event.fuelType()).isEqualTo(FuelType.VLSFO);
+                                assertThat(event.quantity()).isEqualTo(QUANTITY);
+                            });
+            assertThat(order.domainEvents().stream().map(DomainEvent::status)).endsWith(lastStatus);
+        }
+
         @ParameterizedTest(name = "{0} --{1}--> rejected")
         @CsvSource({
             "CREATED,    DISPATCH",

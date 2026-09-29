@@ -19,10 +19,16 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | `DomainEventPublisher` | `application.port.out` | `publish(List<DomainEvent>)`; called by the service after `save` |
 | `OutboxDomainEventPublisher` | `adapter.out.messaging` | Implements the port by writing outbox rows (joins the caller's tx: `Propagation.MANDATORY`) |
 | `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED` |
-| `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope |
+| `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
 | `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)` |
 | `OutboxCleanup` | `adapter.out.messaging` | Daily; deletes published rows older than 7 days |
 | `KafkaTopicConfig` | `config` | `NewTopic dispatch.orders.v1` (3 partitions, replication 1 locally) |
+
+Every event carries the order snapshot at the time of the change (DOM-3.2), so the mapper needs
+nothing but the event and `DomainEventPublisher.publish(List<DomainEvent>)` stays unchanged.
+The mapper builds the envelope as a Jackson `ObjectNode` by hand (`toJson(event)`), so the wire
+format does not depend on `ObjectMapper` settings; `eventType(event)` gives the name used for the
+outbox row and the Kafka header.
 
 Producer settings: `acks=all`, `enable.idempotence=true`, JSON value (Jackson `ObjectMapper`,
 not Spring's type headers), `StringSerializer` key.
@@ -83,9 +89,9 @@ Versioning rule: additive, optional fields keep `v1`; anything else creates `v2`
 
 | Decision | Alternatives | Why | ADR |
 | --- | --- | --- | --- |
-| Outbox + polling relay | Publish directly after commit; Debezium CDC | Direct publish loses events on crash; CDC adds infrastructure. Polling is simple and explainable | 0003 |
-| At-least-once + idempotent consumers | Exactly-once transactions | Simpler; consumers dedupe by `eventId` (phase 04) | 0003 |
-| JSON Schema, no Schema Registry | Avro + Registry | Lower setup cost for a portfolio; noted as future work | 0003 |
+| Outbox + polling relay | Publish directly after commit; Debezium CDC | Direct publish loses events on crash; CDC adds infrastructure. Polling is simple and explainable | 0004 |
+| At-least-once + idempotent consumers | Exactly-once transactions | Simpler; consumers dedupe by `eventId` (phase 04) | 0004 |
+| JSON Schema, no Schema Registry | Avro + Registry | Lower setup cost for a portfolio; noted as future work | 0004 |
 
 ## Testing strategy
 

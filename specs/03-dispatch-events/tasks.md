@@ -6,10 +6,11 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: example JSON files for each event type validate against the schema; an invalid one fails.
   - Code: `contracts/dispatch-order-event.v1.schema.json`, `contracts/examples/*.json`.
   - _Req: EVT-3.1, EVT-3.2_
-- [ ] **03.2** Event mapper
+- [x] **03.2** Event mapper
   - Test: `DispatchOrderEventMapperTest` — each domain event maps to a schema-valid envelope.
-  - Code: `DispatchOrderEventMapper`.
-  - _Req: EVT-3.1, EVT-3.2_
+  - Code: order data on every domain event (+ `DomainEvent` accessors, `DispatchOrderTest`
+    updated); `DispatchOrderEventMapper`.
+  - _Req: EVT-3.1, EVT-3.2, DOM-3.2_
 - [ ] **03.3** Outbox table and publisher port
   - Test: `OutboxTransactionIT` (commit → rows; rollback → no rows); service test verifies
     `DomainEventPublisher.publish` is called with pulled events.
@@ -30,5 +31,5 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
 - [ ] **03.7** Cleanup job
   - Test: `OutboxCleanupIT`.
   - _Req: EVT-NF-1_
-- [ ] **03.8** ADR 0003 outbox + at-least-once; architecture diagram in README.
+- [ ] **03.8** ADR 0004 outbox + at-least-once; architecture diagram in README.
 - [ ] **03.9** Verify phase: `/spec-review 03`; demo: create an order and see the event in Kafka UI.

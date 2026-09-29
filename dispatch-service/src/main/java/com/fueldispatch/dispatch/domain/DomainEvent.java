@@ -4,8 +4,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Something that happened to a dispatch order (DOM-3.2). Sealed so that mappers can switch over
- * every event type exhaustively.
+ * Something that happened to a dispatch order (DOM-3.2), with the order data at that moment so that
+ * consumers need nothing else. Sealed so that mappers can switch over every event type
+ * exhaustively.
  */
 public sealed interface DomainEvent
         permits OrderCreated, OrderApproved, OrderDispatched, OrderDelivered, OrderCancelled {
@@ -15,4 +16,15 @@ public sealed interface DomainEvent
     OrderId orderId();
 
     Instant occurredAt();
+
+    /** Status of the order right after the change. */
+    OrderStatus status();
+
+    Vessel vessel();
+
+    Berth berth();
+
+    FuelType fuelType();
+
+    Quantity quantity();
 }

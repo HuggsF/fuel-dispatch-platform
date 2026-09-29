@@ -134,19 +134,25 @@ public class DispatchOrder {
     /** {@code CREATED -> APPROVED} (DOM-2.1). */
     public void approve(Clock clock) {
         Instant now = transition(OrderAction.APPROVE, clock);
-        domainEvents.add(new OrderApproved(UUID.randomUUID(), id, now, status));
+        domainEvents.add(
+                new OrderApproved(
+                        UUID.randomUUID(), id, now, status, vessel, berth, fuelType, quantity));
     }
 
     /** {@code APPROVED -> DISPATCHED} (DOM-2.2). */
     public void dispatch(Clock clock) {
         Instant now = transition(OrderAction.DISPATCH, clock);
-        domainEvents.add(new OrderDispatched(UUID.randomUUID(), id, now, status));
+        domainEvents.add(
+                new OrderDispatched(
+                        UUID.randomUUID(), id, now, status, vessel, berth, fuelType, quantity));
     }
 
     /** {@code DISPATCHED -> DELIVERED} (DOM-2.3). */
     public void deliver(Clock clock) {
         Instant now = transition(OrderAction.DELIVER, clock);
-        domainEvents.add(new OrderDelivered(UUID.randomUUID(), id, now, status));
+        domainEvents.add(
+                new OrderDelivered(
+                        UUID.randomUUID(), id, now, status, vessel, berth, fuelType, quantity));
     }
 
     /** {@code CREATED | APPROVED -> CANCELLED}, storing the reason (DOM-2.4). */
@@ -154,7 +160,17 @@ public class DispatchOrder {
         requirePresent(reason, "cancellation reason");
         Instant now = transition(OrderAction.CANCEL, clock);
         cancellationReason = reason;
-        domainEvents.add(new OrderCancelled(UUID.randomUUID(), id, now, status, reason));
+        domainEvents.add(
+                new OrderCancelled(
+                        UUID.randomUUID(),
+                        id,
+                        now,
+                        status,
+                        vessel,
+                        berth,
+                        fuelType,
+                        quantity,
+                        reason));
     }
 
     /**
