@@ -63,6 +63,30 @@ Driving adapter (REST) → driving ports (use cases) → application services �
 `CreateOrderRequest`: `vesselName`, `vesselImo`, `berth`, `fuelType`, `quantityM3`,
 `windowStart`, `windowEnd`.
 
+## Web details
+
+- `CreateOrderRequest` repeats the domain rules as Bean Validation so API-1.2 can list every
+  invalid field at once: `vesselName` not blank, ≤ 120; `vesselImo` `[0-9]{7}`; `berth` not
+  blank, ≤ 20; `fuelType` a string matching `MGO|VLSFO|HFO`; `quantityM3` > 0, ≤ 10000, at most
+  3 decimals; `windowStart`, `windowEnd` required, end after start (reported on `windowEnd`).
+  The lengths also match the column sizes. `DomainValidationException` stays as a safety net
+  (400 without a field list, task 02.6).
+- `OrderResponse`: `id`, `vesselName`, `vesselImo`, `berth`, `fuelType`, `quantityM3`,
+  `windowStart`, `windowEnd`, `status`, `cancellationReason` (null unless cancelled),
+  `createdAt`, `updatedAt`. `PageResponse<T>`: `items`, `page`, `size`, `totalElements`,
+  `totalPages`.
+- Mapping lives in the DTOs (`CreateOrderRequest.toCommand()`, `OrderResponse.from(order)`); the
+  controller only maps and delegates (API-NF-1). `Location` is `/api/v1/orders/{id}`.
+- List parameters: `status` an `OrderStatus` name, `page` ≥ 0 (default 0), `size` 1–100
+  (default 20); out-of-range values → 400 (method validation).
+- Validation errors → 400, `code: VALIDATION_FAILED`, `errors: [{ "field", "message" }]`,
+  sorted by field.
+- `ApiExceptionHandler` grows with the tasks: 02.4 `VALIDATION_FAILED` and `ORDER_NOT_FOUND`;
+  02.5 `INVALID_TRANSITION`; 02.6 `CONCURRENT_MODIFICATION`, `DomainValidationException`,
+  malformed JSON, plus the test of every code's shape.
+- `ClockConfig` (`Clock.systemUTC()`) and `UseCaseConfig` (registers `OrderApplicationService`)
+  are created in 02.4, the first task that needs the use cases as beans.
+
 Error body example:
 
 ```json
