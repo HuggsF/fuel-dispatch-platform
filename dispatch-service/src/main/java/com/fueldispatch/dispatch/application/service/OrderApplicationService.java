@@ -8,6 +8,7 @@ import com.fueldispatch.dispatch.application.port.in.CreateOrderUseCase;
 import com.fueldispatch.dispatch.application.port.in.GetOrderQuery;
 import com.fueldispatch.dispatch.application.port.in.ListOrdersQuery;
 import com.fueldispatch.dispatch.application.port.in.OrderPageQuery;
+import com.fueldispatch.dispatch.application.port.out.DomainEventPublisher;
 import com.fueldispatch.dispatch.application.port.out.OrderPage;
 import com.fueldispatch.dispatch.application.port.out.OrderRepository;
 import com.fueldispatch.dispatch.domain.DispatchOrder;
@@ -25,10 +26,13 @@ public class OrderApplicationService
         implements CreateOrderUseCase, ChangeOrderStatusUseCase, GetOrderQuery, ListOrdersQuery {
 
     private final OrderRepository orderRepository;
+    private final DomainEventPublisher eventPublisher;
     private final Clock clock;
 
-    public OrderApplicationService(OrderRepository orderRepository, Clock clock) {
+    public OrderApplicationService(
+            OrderRepository orderRepository, DomainEventPublisher eventPublisher, Clock clock) {
         this.orderRepository = Objects.requireNonNull(orderRepository, "orderRepository");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -43,7 +47,7 @@ public class OrderApplicationService
                         command.quantity(),
                         command.deliveryWindow(),
                         clock);
-        return orderRepository.save(order);
+        return saveAndPublish(order);
     }
 
     @Override
@@ -56,7 +60,7 @@ public class OrderApplicationService
             case DELIVER -> order.deliver(clock);
             case CANCEL -> order.cancel(command.reason(), clock);
         }
-        return orderRepository.save(order);
+        return saveAndPublish(order);
     }
 
     @Override
@@ -70,6 +74,16 @@ public class OrderApplicationService
     public OrderPage list(OrderPageQuery query) {
         return orderRepository.findPage(
                 Optional.ofNullable(query.status()), query.page(), query.size());
+    }
+
+    /**
+     * Saves the order and hands its new events to the publisher in the same transaction, so both
+     * commit or roll back together (EVT-1.1, EVT-1.2).
+     */
+    private DispatchOrder saveAndPublish(DispatchOrder order) {
+        DispatchOrder saved = orderRepository.save(order);
+        eventPublisher.publish(order.pullDomainEvents());
+        return saved;
     }
 
     private DispatchOrder load(OrderId orderId) {

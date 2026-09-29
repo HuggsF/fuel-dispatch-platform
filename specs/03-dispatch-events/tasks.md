@@ -11,7 +11,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Code: order data on every domain event (+ `DomainEvent` accessors, `DispatchOrderTest`
     updated); `DispatchOrderEventMapper`.
   - _Req: EVT-3.1, EVT-3.2, DOM-3.2_
-- [ ] **03.3** Outbox table and publisher port
+- [x] **03.3** Outbox table and publisher port
   - Test: `OutboxTransactionIT` (commit → rows; rollback → no rows); service test verifies
     `DomainEventPublisher.publish` is called with pulled events.
   - Code: `V2__create_outbox_event.sql`, `DomainEventPublisher`, `OutboxDomainEventPublisher`,

@@ -1,5 +1,6 @@
 package com.fueldispatch.dispatch.config;
 
+import com.fueldispatch.dispatch.application.port.out.DomainEventPublisher;
 import com.fueldispatch.dispatch.application.port.out.OrderRepository;
 import com.fueldispatch.dispatch.application.service.OrderApplicationService;
 import java.time.Clock;
@@ -11,7 +12,8 @@ import org.springframework.context.annotation.Configuration;
 class UseCaseConfig {
 
     @Bean
-    OrderApplicationService orderApplicationService(OrderRepository orderRepository, Clock clock) {
-        return new OrderApplicationService(orderRepository, clock);
+    OrderApplicationService orderApplicationService(
+            OrderRepository orderRepository, DomainEventPublisher eventPublisher, Clock clock) {
+        return new OrderApplicationService(orderRepository, eventPublisher, clock);
     }
 }

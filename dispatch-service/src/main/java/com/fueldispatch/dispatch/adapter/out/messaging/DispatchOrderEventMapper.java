@@ -8,12 +8,14 @@ import com.fueldispatch.dispatch.domain.OrderCancelled;
 import com.fueldispatch.dispatch.domain.OrderCreated;
 import com.fueldispatch.dispatch.domain.OrderDelivered;
 import com.fueldispatch.dispatch.domain.OrderDispatched;
+import org.springframework.stereotype.Component;
 
 /**
  * Maps a domain event to the JSON envelope of {@code contracts/dispatch-order-event.v1.schema.json}
  * (EVT-3.1, EVT-3.2). The tree is built by hand, so the wire format does not depend on how an
  * {@code ObjectMapper} is configured.
  */
+@Component
 public class DispatchOrderEventMapper {
 
     static final int EVENT_VERSION = 1;

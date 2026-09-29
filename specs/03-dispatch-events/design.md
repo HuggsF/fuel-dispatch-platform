@@ -18,11 +18,14 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | --- | --- | --- |
 | `DomainEventPublisher` | `application.port.out` | `publish(List<DomainEvent>)`; called by the service after `save` |
 | `OutboxDomainEventPublisher` | `adapter.out.messaging` | Implements the port by writing outbox rows (joins the caller's tx: `Propagation.MANDATORY`) |
-| `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED` |
+| `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED`. The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
 | `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
 | `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)` |
 | `OutboxCleanup` | `adapter.out.messaging` | Daily; deletes published rows older than 7 days |
 | `KafkaTopicConfig` | `config` | `NewTopic dispatch.orders.v1` (3 partitions, replication 1 locally) |
+
+The service saves the order, then publishes `order.pullDomainEvents()` — pulled from the
+instance it changed, because `OrderRepository.save` returns a rehydrated copy without events.
 
 Every event carries the order snapshot at the time of the change (DOM-3.2), so the mapper needs
 nothing but the event and `DomainEventPublisher.publish(List<DomainEvent>)` stays unchanged.

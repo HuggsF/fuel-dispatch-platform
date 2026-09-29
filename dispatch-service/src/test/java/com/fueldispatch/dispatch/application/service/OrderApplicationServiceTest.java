@@ -3,20 +3,24 @@ package com.fueldispatch.dispatch.application.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fueldispatch.dispatch.application.OrderNotFoundException;
 import com.fueldispatch.dispatch.application.port.in.ChangeStatusCommand;
 import com.fueldispatch.dispatch.application.port.in.CreateOrderCommand;
 import com.fueldispatch.dispatch.application.port.in.OrderPageQuery;
+import com.fueldispatch.dispatch.application.port.out.DomainEventPublisher;
 import com.fueldispatch.dispatch.application.port.out.OrderPage;
 import com.fueldispatch.dispatch.application.port.out.OrderRepository;
 import com.fueldispatch.dispatch.domain.Berth;
 import com.fueldispatch.dispatch.domain.CancellationReason;
 import com.fueldispatch.dispatch.domain.DeliveryWindow;
 import com.fueldispatch.dispatch.domain.DispatchOrder;
+import com.fueldispatch.dispatch.domain.DomainEvent;
 import com.fueldispatch.dispatch.domain.FuelType;
 import com.fueldispatch.dispatch.domain.InvalidOrderTransitionException;
 import com.fueldispatch.dispatch.domain.OrderAction;
@@ -39,6 +43,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,12 +64,13 @@ class OrderApplicationServiceTest {
     private static final CancellationReason REASON = new CancellationReason("Vessel delayed");
 
     @Mock private OrderRepository orderRepository;
+    @Mock private DomainEventPublisher eventPublisher;
 
     private OrderApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderApplicationService(orderRepository, CLOCK);
+        service = new OrderApplicationService(orderRepository, eventPublisher, CLOCK);
     }
 
     private static DispatchOrder persistedOrder(OrderStatus status) {
@@ -108,6 +114,28 @@ class OrderApplicationServiceTest {
         assertThat(result).isSameAs(saved);
     }
 
+    // EVT-1.1
+    @Test
+    void create_validCommand_publishesTheOrderCreatedAfterSaving() {
+        when(orderRepository.save(any())).thenReturn(persistedOrder(OrderStatus.CREATED));
+
+        service.create(new CreateOrderCommand(VESSEL, BERTH, FuelType.VLSFO, QUANTITY, WINDOW));
+
+        ArgumentCaptor<DispatchOrder> saved = ArgumentCaptor.forClass(DispatchOrder.class);
+        ArgumentCaptor<List<DomainEvent>> published = eventsCaptor();
+        InOrder inOrder = inOrder(orderRepository, eventPublisher);
+        inOrder.verify(orderRepository).save(saved.capture());
+        inOrder.verify(eventPublisher).publish(published.capture());
+        assertThat(published.getValue())
+                .singleElement()
+                .satisfies(
+                        event -> {
+                            assertThat(event.orderId()).isEqualTo(saved.getValue().id());
+                            assertThat(event.status()).isEqualTo(OrderStatus.CREATED);
+                        });
+        assertThat(saved.getValue().domainEvents()).as("events pulled").isEmpty();
+    }
+
     static Stream<Arguments> allowedTransitions() {
         return Stream.of(
                 Arguments.of(OrderStatus.CREATED, OrderAction.APPROVE, null),
@@ -136,6 +164,32 @@ class OrderApplicationServiceTest {
         assertThat(result.cancellationReason()).isEqualTo(Optional.ofNullable(reason));
     }
 
+    // EVT-1.1
+    @ParameterizedTest(name = "{0} --{1}--> published")
+    @MethodSource("allowedTransitions")
+    void changeStatus_allowedTransition_publishesThePulledEventAfterSaving(
+            OrderStatus from, OrderAction action, CancellationReason reason) {
+        DispatchOrder order = persistedOrder(from);
+        when(orderRepository.findById(order.id())).thenReturn(Optional.of(order));
+        saveReturnsItsArgument();
+
+        service.changeStatus(new ChangeStatusCommand(order.id(), action, reason));
+
+        ArgumentCaptor<List<DomainEvent>> published = eventsCaptor();
+        InOrder inOrder = inOrder(orderRepository, eventPublisher);
+        inOrder.verify(orderRepository).save(order);
+        inOrder.verify(eventPublisher).publish(published.capture());
+        assertThat(published.getValue())
+                .singleElement()
+                .satisfies(
+                        event -> {
+                            assertThat(event.orderId()).isEqualTo(order.id());
+                            assertThat(event.status()).isEqualTo(action.targetStatus());
+                            assertThat(event.occurredAt()).isEqualTo(NOW);
+                        });
+        assertThat(order.domainEvents()).as("events pulled").isEmpty();
+    }
+
     // API-1.4
     @Test
     void changeStatus_unknownId_throwsOrderNotFoundAndSavesNothing() {
@@ -150,6 +204,7 @@ class OrderApplicationServiceTest {
                 .extracting(e -> ((OrderNotFoundException) e).orderId())
                 .isEqualTo(id);
         verify(orderRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -164,6 +219,7 @@ class OrderApplicationServiceTest {
                                                 order.id(), OrderAction.DISPATCH, null)))
                 .isInstanceOf(InvalidOrderTransitionException.class);
         verify(orderRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     // API-1.3
@@ -209,6 +265,11 @@ class OrderApplicationServiceTest {
         assertTransactional("changeStatus", false, ChangeStatusCommand.class);
         assertTransactional("get", true, OrderId.class);
         assertTransactional("list", true, OrderPageQuery.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ArgumentCaptor<List<DomainEvent>> eventsCaptor() {
+        return ArgumentCaptor.forClass(List.class);
     }
 
     private static void assertTransactional(String name, boolean readOnly, Class<?> parameter)
