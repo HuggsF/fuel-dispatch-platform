@@ -7,7 +7,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     unknown id throws `OrderNotFoundException`.
   - Code: `port.in`, `port.out`, `OrderApplicationService`, `OrderNotFoundException`.
   - _Req: API-1.1, API-1.3, API-1.4, API-2.1, API-2.2, API-3.3_
-- [ ] **02.2** Flyway migration and JPA adapter
+- [x] **02.2** Flyway migration and JPA adapter
   - Test: `OrderPersistenceIT` — save + findById round-trip; paging by status, newest first.
   - Code: JPA + Flyway + PostgreSQL driver deps, `V1__create_dispatch_order.sql`, entity, mapper,
     adapter; datasource config pointing to compose / Testcontainers.

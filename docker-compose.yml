@@ -76,6 +76,13 @@ services:
       context: .
       dockerfile: dispatch-service/Dockerfile
     image: fuel-dispatch/dispatch-service:local
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dispatch}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dispatch}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dispatch}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8081:8081"
 

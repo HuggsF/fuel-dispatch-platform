@@ -7,12 +7,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-/** Smoke test for FND-1.5: the service starts and reports itself healthy. */
+/**
+ * Smoke test for FND-1.5: the service starts and reports itself healthy. An integration test since
+ * phase 02, because the context needs PostgreSQL.
+ */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-class DispatchServiceApplicationTest {
+@Import(TestcontainersConfiguration.class)
+class DispatchServiceApplicationIT {
 
     @Autowired private TestRestTemplate restTemplate;
 
