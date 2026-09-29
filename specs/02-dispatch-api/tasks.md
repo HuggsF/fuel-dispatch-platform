@@ -26,7 +26,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: approve/dispatch/deliver/cancel happy paths; 409 `INVALID_TRANSITION` body; 400 on blank reason.
   - Code: action endpoints, INVALID_TRANSITION in `ApiExceptionHandler`.
   - _Req: API-2.1, API-2.2, API-2.3_
-- [ ] **02.6** Global error handling
+- [x] **02.6** Global error handling
   - Test: each error code produces the ProblemDetail shape in `design.md`, including
     `CONCURRENT_MODIFICATION`, domain-rule violations and malformed JSON.
   - Code: remaining handlers in `ApiExceptionHandler`.
