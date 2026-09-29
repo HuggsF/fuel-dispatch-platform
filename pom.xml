@@ -40,6 +40,7 @@
         <spotless-maven-plugin.version>3.10.3</spotless-maven-plugin.version>
         <google-java-format.version>1.36.1</google-java-format.version>
         <jacoco.minimum.line.coverage>0.80</jacoco.minimum.line.coverage>
+        <jacoco.minimum.dispatch-domain.branch.coverage>1.00</jacoco.minimum.dispatch-domain.branch.coverage>
     </properties>
 
     <dependencyManagement>
@@ -122,6 +123,21 @@
                                                 <counter>LINE</counter>
                                                 <value>COVEREDRATIO</value>
                                                 <minimum>${jacoco.minimum.line.coverage}</minimum>
+                                            </limit>
+                                        </limits>
+                                    </rule>
+                                    <!-- DOM-NF-1: every branch of the dispatch domain is
+                                         covered by unit tests. -->
+                                    <rule>
+                                        <element>PACKAGE</element>
+                                        <includes>
+                                            <include>com.fueldispatch.dispatch.domain</include>
+                                        </includes>
+                                        <limits>
+                                            <limit>
+                                                <counter>BRANCH</counter>
+                                                <value>COVEREDRATIO</value>
+                                                <minimum>${jacoco.minimum.dispatch-domain.branch.coverage}</minimum>
                                             </limit>
                                         </limits>
                                     </rule>
