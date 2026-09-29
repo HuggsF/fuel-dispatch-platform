@@ -33,8 +33,12 @@ The mapper builds the envelope as a Jackson `ObjectNode` by hand (`toJson(event)
 format does not depend on `ObjectMapper` settings; `eventType(event)` gives the name used for the
 outbox row and the Kafka header.
 
-Producer settings: `acks=all`, `enable.idempotence=true`, JSON value (Jackson `ObjectMapper`,
-not Spring's type headers), `StringSerializer` key.
+Producer settings: `acks=all`, `enable.idempotence=true`, `StringSerializer` for key and value.
+The value is the outbox `payload` — JSON already built by `DispatchOrderEventMapper` — so no
+Spring `JsonSerializer` type headers reach the contract. The topic name is
+`DispatchOrderEventMapper.TOPIC` (tied to the contract version); partitions and replicas come
+from `dispatch.kafka.topic.partitions` / `.replicas` (defaults 3 / 1). Kafka UI
+(`kafbat/kafka-ui`) runs in compose on port 8090.
 
 ## Schema — `V2__create_outbox_event.sql`
 

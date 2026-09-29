@@ -11,6 +11,18 @@ spring:
     hibernate:
       # Schema is owned by Flyway only (API-3.1).
       ddl-auto: validate
+  # Local default matches docker-compose.yml; override with SPRING_KAFKA_BOOTSTRAP_SERVERS.
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      # Key = orderId (EVT-2.2). Value = the event JSON already built by the outbox, sent as plain
+      # text so no Spring type headers leak into the contract (EVT-3.1).
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      # A message counts as sent only once every in-sync replica has it; retries never duplicate.
+      acks: all
+      properties:
+        enable.idempotence: true
 
 server:
   port: 8081

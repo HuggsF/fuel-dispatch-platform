@@ -18,6 +18,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class DispatchOrderEventMapper {
 
+    /** Topic of this contract version; a breaking change creates {@code dispatch.orders.v2}. */
+    public static final String TOPIC = "dispatch.orders.v1";
+
     static final int EVENT_VERSION = 1;
 
     private static final JsonNodeFactory NODES = JsonNodeFactory.instance;

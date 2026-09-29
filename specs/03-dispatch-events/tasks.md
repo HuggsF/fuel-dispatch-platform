@@ -17,7 +17,9 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Code: `V2__create_outbox_event.sql`, `DomainEventPublisher`, `OutboxDomainEventPublisher`,
     service change.
   - _Req: EVT-1.1, EVT-1.2_
-- [ ] **03.4** Kafka producer config and topic
+- [x] **03.4** Kafka producer config and topic
+  - Test: `KafkaTopicConfigTest`; `KafkaProducerConfigIT` (Testcontainers Kafka) — producer
+    settings and topic created with 3 partitions.
   - Code: spring-kafka dependency, producer properties, `KafkaTopicConfig`; Kafka UI in compose (optional).
   - _Req: EVT-2.2, EVT-3.3_
 - [ ] **03.5** Outbox relay

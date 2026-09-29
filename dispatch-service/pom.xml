@@ -50,6 +50,11 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
+            <!-- Outbox relay to Kafka (EVT-2). -->
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
@@ -78,6 +83,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
