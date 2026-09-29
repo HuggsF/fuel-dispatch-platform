@@ -17,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fueldispatch.dispatch.application.OrderNotFoundException;
+import com.fueldispatch.dispatch.application.port.in.ChangeOrderStatusUseCase;
+import com.fueldispatch.dispatch.application.port.in.ChangeStatusCommand;
 import com.fueldispatch.dispatch.application.port.in.CreateOrderCommand;
 import com.fueldispatch.dispatch.application.port.in.CreateOrderUseCase;
 import com.fueldispatch.dispatch.application.port.in.GetOrderQuery;
@@ -28,6 +30,8 @@ import com.fueldispatch.dispatch.domain.CancellationReason;
 import com.fueldispatch.dispatch.domain.DeliveryWindow;
 import com.fueldispatch.dispatch.domain.DispatchOrder;
 import com.fueldispatch.dispatch.domain.FuelType;
+import com.fueldispatch.dispatch.domain.InvalidOrderTransitionException;
+import com.fueldispatch.dispatch.domain.OrderAction;
 import com.fueldispatch.dispatch.domain.OrderId;
 import com.fueldispatch.dispatch.domain.OrderStatus;
 import com.fueldispatch.dispatch.domain.Quantity;
@@ -38,9 +42,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -66,6 +72,7 @@ class OrderControllerTest {
     @MockitoBean private CreateOrderUseCase createOrderUseCase;
     @MockitoBean private GetOrderQuery getOrderQuery;
     @MockitoBean private ListOrdersQuery listOrdersQuery;
+    @MockitoBean private ChangeOrderStatusUseCase changeOrderStatusUseCase;
 
     private static DispatchOrder order(OrderStatus status) {
         return DispatchOrder.rehydrate(
@@ -326,5 +333,115 @@ class OrderControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON));
         verifyNoInteractions(listOrdersQuery);
+    }
+
+    @Nested
+    class LifecycleActions {
+
+        private ResultActions postAction(OrderId id, String action) throws Exception {
+            return mockMvc.perform(post("/api/v1/orders/{id}/{action}", id, action));
+        }
+
+        private ResultActions postCancel(OrderId id, String reason) throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("reason", reason);
+            return mockMvc.perform(
+                    post("/api/v1/orders/{id}/cancel", id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)));
+        }
+
+        // API-2.1
+        @ParameterizedTest(name = "POST /{0} -> {2}")
+        @CsvSource({
+            "approve, APPROVE, APPROVED",
+            "dispatch, DISPATCH, DISPATCHED",
+            "deliver, DELIVER, DELIVERED"
+        })
+        void action_allowed_returns200WithUpdatedOrder(
+                String path, OrderAction action, OrderStatus resultingStatus) throws Exception {
+            DispatchOrder updated = order(resultingStatus);
+            when(changeOrderStatusUseCase.changeStatus(any())).thenReturn(updated);
+
+            ResultActions result = postAction(updated.id(), path).andExpect(status().isOk());
+            assertOrderJson(result, updated);
+
+            verify(changeOrderStatusUseCase)
+                    .changeStatus(new ChangeStatusCommand(updated.id(), action, null));
+        }
+
+        // API-2.2
+        @Test
+        void cancel_validReason_returns200WithCancelledOrder() throws Exception {
+            DispatchOrder cancelled = order(OrderStatus.CANCELLED);
+            when(changeOrderStatusUseCase.changeStatus(any())).thenReturn(cancelled);
+
+            postCancel(cancelled.id(), "Vessel delayed")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("CANCELLED"))
+                    .andExpect(jsonPath("$.cancellationReason").value("Vessel delayed"));
+
+            verify(changeOrderStatusUseCase)
+                    .changeStatus(
+                            new ChangeStatusCommand(
+                                    cancelled.id(),
+                                    OrderAction.CANCEL,
+                                    new CancellationReason("Vessel delayed")));
+        }
+
+        static Stream<Arguments> invalidReasons() {
+            return Stream.of(
+                    Arguments.of(""),
+                    Arguments.of("   "),
+                    Arguments.of((Object) null),
+                    Arguments.of("r".repeat(501)));
+        }
+
+        // API-2.2, BR-5
+        @ParameterizedTest
+        @MethodSource("invalidReasons")
+        void cancel_invalidReason_returns400ListingReason(String reason) throws Exception {
+            postCancel(OrderId.newId(), reason)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.errors", hasSize(1)))
+                    .andExpect(jsonPath("$.errors[0].field").value("reason"));
+            verifyNoInteractions(changeOrderStatusUseCase);
+        }
+
+        // API-2.3
+        @Test
+        void action_transitionNotAllowed_returns409InvalidTransition() throws Exception {
+            when(changeOrderStatusUseCase.changeStatus(any()))
+                    .thenThrow(
+                            new InvalidOrderTransitionException(
+                                    OrderStatus.CREATED, OrderAction.DISPATCH));
+
+            postAction(OrderId.newId(), "dispatch")
+                    .andExpect(status().isConflict())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.type").value("about:blank"))
+                    .andExpect(jsonPath("$.title").value("Invalid order transition"))
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(
+                            jsonPath("$.detail")
+                                    .value("Cannot DISPATCH an order in status CREATED"))
+                    .andExpect(jsonPath("$.code").value("INVALID_TRANSITION"))
+                    .andExpect(jsonPath("$.currentStatus").value("CREATED"))
+                    .andExpect(jsonPath("$.action").value("DISPATCH"));
+        }
+
+        // API-1.4
+        @Test
+        void action_unknownOrder_returns404OrderNotFound() throws Exception {
+            OrderId id = OrderId.newId();
+            when(changeOrderStatusUseCase.changeStatus(any()))
+                    .thenThrow(new OrderNotFoundException(id));
+
+            postAction(id, "approve")
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
+        }
     }
 }

@@ -22,7 +22,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Code: `OrderController`, DTOs with Bean Validation, `ApiExceptionHandler` (VALIDATION_FAILED,
     ORDER_NOT_FOUND), `ClockConfig`, `UseCaseConfig`.
   - _Req: API-1.1, API-1.2, API-1.3, API-1.4, API-1.5, API-NF-1_
-- [ ] **02.5** REST controller — lifecycle actions
+- [x] **02.5** REST controller — lifecycle actions
   - Test: approve/dispatch/deliver/cancel happy paths; 409 `INVALID_TRANSITION` body; 400 on blank reason.
   - Code: action endpoints, INVALID_TRANSITION in `ApiExceptionHandler`.
   - _Req: API-2.1, API-2.2, API-2.3_

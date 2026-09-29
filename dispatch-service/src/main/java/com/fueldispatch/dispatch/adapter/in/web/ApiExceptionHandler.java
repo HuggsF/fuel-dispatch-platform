@@ -1,6 +1,7 @@
 package com.fueldispatch.dispatch.adapter.in.web;
 
 import com.fueldispatch.dispatch.application.OrderNotFoundException;
+import com.fueldispatch.dispatch.domain.InvalidOrderTransitionException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -37,6 +38,23 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail handleOrderNotFound(OrderNotFoundException exception) {
         return problem(
                 HttpStatus.NOT_FOUND, "Order not found", exception.getMessage(), "ORDER_NOT_FOUND");
+    }
+
+    /** API-2.3 */
+    @ExceptionHandler(InvalidOrderTransitionException.class)
+    ProblemDetail handleInvalidTransition(InvalidOrderTransitionException exception) {
+        ProblemDetail problem =
+                problem(
+                        HttpStatus.CONFLICT,
+                        "Invalid order transition",
+                        "Cannot "
+                                + exception.action()
+                                + " an order in status "
+                                + exception.currentStatus(),
+                        "INVALID_TRANSITION");
+        problem.setProperty("currentStatus", exception.currentStatus());
+        problem.setProperty("action", exception.action());
+        return problem;
     }
 
     /** API-1.2: invalid request body. */
