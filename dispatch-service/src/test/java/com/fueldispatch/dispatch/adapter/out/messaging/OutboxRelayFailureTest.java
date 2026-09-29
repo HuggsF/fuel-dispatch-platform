@@ -46,8 +46,7 @@ class OutboxRelayFailureTest {
     @Test
     void relayPending_kafkaAcknowledges_sendsKeyedRecordWithHeadersAndMarksRowPublished() {
         OutboxEventJpaEntity row = row("OrderApproved");
-        when(repository.findTop100ByPublishedAtIsNullOrderByOccurredAtAsc())
-                .thenReturn(List.of(row));
+        when(repository.lockNextBatch()).thenReturn(List.of(row));
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(acknowledged());
 
         relay.relayPending();
@@ -68,8 +67,7 @@ class OutboxRelayFailureTest {
         OutboxEventJpaEntity first = row("OrderCreated");
         OutboxEventJpaEntity second = row("OrderApproved");
         OutboxEventJpaEntity third = row("OrderDispatched");
-        when(repository.findTop100ByPublishedAtIsNullOrderByOccurredAtAsc())
-                .thenReturn(List.of(first, second, third));
+        when(repository.lockNextBatch()).thenReturn(List.of(first, second, third));
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(acknowledged())
                 .thenReturn(CompletableFuture.failedFuture(new KafkaException("broker down")));
@@ -87,8 +85,7 @@ class OutboxRelayFailureTest {
     void relayPending_kafkaUnavailable_keepsEveryRowUnpublished() {
         OutboxEventJpaEntity first = row("OrderCreated");
         OutboxEventJpaEntity second = row("OrderApproved");
-        when(repository.findTop100ByPublishedAtIsNullOrderByOccurredAtAsc())
-                .thenReturn(List.of(first, second));
+        when(repository.lockNextBatch()).thenReturn(List.of(first, second));
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenThrow(new KafkaException("Topic not present in metadata after 5000 ms"));
 
@@ -101,7 +98,7 @@ class OutboxRelayFailureTest {
 
     @Test
     void relayPending_nothingPending_sendsNothing() {
-        when(repository.findTop100ByPublishedAtIsNullOrderByOccurredAtAsc()).thenReturn(List.of());
+        when(repository.lockNextBatch()).thenReturn(List.of());
 
         relay.relayPending();
 

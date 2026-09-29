@@ -26,10 +26,10 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `OutboxRelayIT`, `OutboxRelayFailureTest`.
   - Code: `OutboxRelay` with key = orderId and headers.
   - _Req: EVT-2.1, EVT-2.2, EVT-2.3, EVT-2.4, EVT-1.3, EVT-3.3_
-- [ ] **03.6** Concurrent relays
+- [x] **03.6** Concurrent relays
   - Test: `OutboxLockingIT`.
-  - Code: native query with `FOR UPDATE SKIP LOCKED`.
-  - _Req: EVT-2.5_
+  - Code: head-of-line native query with `FOR UPDATE SKIP LOCKED`; `V3` index.
+  - _Req: EVT-2.5, EVT-2.6_
 - [ ] **03.7** Cleanup job
   - Test: `OutboxCleanupIT`.
   - _Req: EVT-NF-1_

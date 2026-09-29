@@ -49,8 +49,7 @@ class OutboxRelay {
     @Scheduled(fixedDelayString = "${outbox.relay.interval:1000}")
     @Transactional
     public void relayPending() {
-        for (OutboxEventJpaEntity row :
-                repository.findTop100ByPublishedAtIsNullOrderByOccurredAtAsc()) {
+        for (OutboxEventJpaEntity row : repository.lockNextBatch()) {
             if (!send(row)) {
                 return;
             }

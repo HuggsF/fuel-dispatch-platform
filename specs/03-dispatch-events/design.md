@@ -18,7 +18,7 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | --- | --- | --- |
 | `DomainEventPublisher` | `application.port.out` | `publish(List<DomainEvent>)`; called by the service after `save` |
 | `OutboxDomainEventPublisher` | `adapter.out.messaging` | Implements the port by writing outbox rows (joins the caller's tx: `Propagation.MANDATORY`) |
-| `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED`. The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
+| `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED` that takes only the oldest unpublished row of each order (head of line), so parallel relays never reorder an order's events (EVT-2.6). The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
 | `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
 | `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)`. Stops the batch at the first failure (see below). Off when `outbox.relay.enabled=false` (tests that inspect unpublished rows) |
 | `OutboxCleanup` | `adapter.out.messaging` | Daily; deletes published rows older than 7 days |
@@ -58,6 +58,9 @@ from `dispatch.kafka.topic.partitions` / `.replicas` (defaults 3 / 1). Kafka UI
 | `published_at` | `timestamptz` null |
 
 Partial index: `create index … on outbox_event (occurred_at) where published_at is null`.
+
+`V3__index_outbox_head_of_line.sql`: partial index on `(aggregate_id, occurred_at) where
+published_at is null`, used by the head-of-line `not exists` of the relay query.
 
 ## Contract — `contracts/dispatch-order-event.v1.schema.json`
 
@@ -114,5 +117,5 @@ Versioning rule: additive, optional fields keep `v1`; anything else creates `v2`
 | EVT-3.x | `DispatchOrderEventMapperTest` + validation against the JSON Schema (networknt json-schema-validator) | unit |
 | EVT-2.1–2.3 | `OutboxRelayIT` — Testcontainers Postgres + Kafka; consume from topic; row marked published | IT |
 | EVT-2.4, 1.3 | `OutboxRelayFailureTest` — `KafkaTemplate` mocked to fail; row stays unpublished | unit |
-| EVT-2.5 | `OutboxLockingIT` — two relays in parallel publish each row once | IT |
+| EVT-2.5, 2.6 | `OutboxLockingIT` — two relays in parallel publish each row once; an order's second event is not picked while its first is locked by another relay | IT |
 | EVT-NF-1 | `OutboxCleanupIT` | IT |
