@@ -109,8 +109,12 @@ Error body example:
   the status filter is a derived query `findByStatus(status, Pageable)`.
 - `save` loads the row by id and copies the aggregate into it (insert when absent), so an
   update touches the entity already managed in the use case's transaction.
-- `version` is created by V1 (schema above) but mapped as a plain column in 02.2; task 02.3
-  turns it into `@Version`.
+- `version` is a `@Version Long` on the entity only (null → new row, so Spring Data persists
+  instead of merging). Because each use case loads and saves the same managed entity in one
+  transaction (API-3.3), Hibernate's `UPDATE ... WHERE version = ?` detects a concurrent commit
+  and the transaction fails with `OptimisticLockingFailureException` (API-2.4). The domain
+  aggregate carries no version; conflicts between separate requests (read, then write later)
+  would need ETag/If-Match and are out of scope.
 
 ## Key decisions
 

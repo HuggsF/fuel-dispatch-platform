@@ -13,8 +13,9 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     adapter; datasource config pointing to compose / Testcontainers.
   - _Req: API-1.5, API-3.1, API-3.2_
 - [ ] **02.3** Optimistic locking
-  - Test: `OptimisticLockingIT` — two concurrent approvals → one `OptimisticLockingFailureException`.
-  - Code: `@Version`, mapping of version in `rehydrate`.
+  - Test: `OptimisticLockingIT` — two interleaved transactions load the same order and approve
+    it; the first commits, the second fails with `OptimisticLockingFailureException`.
+  - Code: `@Version` on the JPA entity (the domain stays unaware of versions).
   - _Req: API-2.4_
 - [ ] **02.4** REST controller — create and read
   - Test: `OrderControllerTest` for POST (201, Location, 400 per field) and GET (200, 404), list.
