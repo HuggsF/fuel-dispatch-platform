@@ -17,7 +17,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     it; the first commits, the second fails with `OptimisticLockingFailureException`.
   - Code: `@Version` on the JPA entity (the domain stays unaware of versions).
   - _Req: API-2.4_
-- [ ] **02.4** REST controller — create and read
+- [x] **02.4** REST controller — create and read
   - Test: `OrderControllerTest` for POST (201, Location, 400 per field) and GET (200, 404), list.
   - Code: `OrderController`, DTOs with Bean Validation, `ApiExceptionHandler` (VALIDATION_FAILED,
     ORDER_NOT_FOUND), `ClockConfig`, `UseCaseConfig`.
