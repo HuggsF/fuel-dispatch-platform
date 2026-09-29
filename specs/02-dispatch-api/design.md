@@ -93,6 +93,25 @@ Error body example:
 | `created_at`, `updated_at` | `timestamptz` not null | index on `created_at desc` |
 | `version` | `bigint` not null | optimistic locking |
 
+## Persistence details
+
+- Dependencies: `spring-boot-starter-data-jpa`, `flyway-core` + `flyway-database-postgresql`,
+  `postgresql` (runtime); tests: `spring-boot-testcontainers`, Testcontainers `postgresql`.
+- `application.yml`: datasource `jdbc:postgresql://localhost:5432/dispatch` (compose defaults),
+  overridable through `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`; `ddl-auto: validate`;
+  `open-in-view: false`. Compose `apps` profile sets the URL to host `postgres` and waits for
+  its healthcheck.
+- Tests share `TestcontainersConfiguration` (`@ServiceConnection` `postgres:16.15-alpine`, the
+  compose image). `OrderPersistenceIT` is a `@DataJpaTest` importing the adapter and mapper.
+  Because the application context now needs a database, the phase 00 smoke test becomes
+  `DispatchServiceApplicationIT` using the same configuration.
+- `findPage` orders by `created_at desc, id desc` (id breaks ties so pages are stable);
+  the status filter is a derived query `findByStatus(status, Pageable)`.
+- `save` loads the row by id and copies the aggregate into it (insert when absent), so an
+  update touches the entity already managed in the use case's transaction.
+- `version` is created by V1 (schema above) but mapped as a plain column in 02.2; task 02.3
+  turns it into `@Version`.
+
 ## Key decisions
 
 | Decision | Why | ADR |
