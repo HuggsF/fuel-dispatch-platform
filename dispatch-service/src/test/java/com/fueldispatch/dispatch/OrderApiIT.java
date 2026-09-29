@@ -113,6 +113,26 @@ class OrderApiIT {
     }
 
     @Test
+    void commandResponse_timestampsMatchWhatIsReadBack() {
+        JsonNode created =
+                client.post()
+                        .uri("/api/v1/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(CREATE_BODY)
+                        .retrieve()
+                        .body(JsonNode.class);
+        String id = created.get("id").asText();
+        JsonNode approved = postAction(id, "approve").getBody();
+
+        JsonNode readBack =
+                client.get().uri("/api/v1/orders/{id}", id).retrieve().body(JsonNode.class);
+
+        assertThat(readBack.get("createdAt").asText()).isEqualTo(created.get("createdAt").asText());
+        assertThat(readBack.get("updatedAt").asText())
+                .isEqualTo(approved.get("updatedAt").asText());
+    }
+
+    @Test
     void getUnknownOrder_returns404OrderNotFound() {
         ResponseEntity<JsonNode> response =
                 client.get()
