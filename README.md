@@ -53,6 +53,44 @@ curl http://localhost:8082/actuator/health     # tracking-service → {"status":
 docker compose --profile apps down             # stop everything (add -v to drop the data volumes)
 ```
 
+### Try the dispatch API
+
+With `docker compose --profile apps up -d --build` running, Swagger UI is at
+<http://localhost:8081/swagger-ui.html> (OpenAPI JSON at `/v3/api-docs`).
+
+```bash
+# Create an order → 201 Created, Location: /api/v1/orders/{id}
+curl -i -X POST http://localhost:8081/api/v1/orders \
+  -H 'Content-Type: application/json' \
+  -d '{"vesselName": "Nordic Star", "vesselImo": "9321483", "berth": "B-03",
+       "fuelType": "VLSFO", "quantityM3": 850.5,
+       "windowStart": "2026-10-01T08:00:00Z", "windowEnd": "2026-10-01T14:00:00Z"}'
+
+ID=<id from the Location header>
+
+curl http://localhost:8081/api/v1/orders/$ID                        # read it
+curl -X POST http://localhost:8081/api/v1/orders/$ID/approve        # CREATED → APPROVED
+curl -X POST http://localhost:8081/api/v1/orders/$ID/dispatch       # APPROVED → DISPATCHED
+curl -X POST http://localhost:8081/api/v1/orders/$ID/deliver        # DISPATCHED → DELIVERED
+curl -X POST http://localhost:8081/api/v1/orders/$ID/cancel \
+  -H 'Content-Type: application/json' -d '{"reason": "Vessel delayed"}'   # only from CREATED or APPROVED
+
+curl 'http://localhost:8081/api/v1/orders?status=APPROVED&page=0&size=20'   # newest first
+```
+
+Errors are RFC 9457 `application/problem+json` bodies with a `code`, e.g. delivering an order that
+was only approved:
+
+```json
+{"type": "about:blank", "title": "Invalid order transition", "status": 409,
+ "detail": "Cannot DELIVER an order in status APPROVED",
+ "code": "INVALID_TRANSITION", "currentStatus": "APPROVED", "action": "DELIVER"}
+```
+
+Codes: `VALIDATION_FAILED` (400, with an `errors` list of `field`/`message`), `MALFORMED_REQUEST`
+(400), `ORDER_NOT_FOUND` (404), `INVALID_TRANSITION` (409), `CONCURRENT_MODIFICATION` (409),
+`INTERNAL_ERROR` (500).
+
 | Component | Port |
 | --- | --- |
 | dispatch-service | 8081 |
@@ -68,7 +106,7 @@ Local credentials are development defaults in `docker-compose.yml`; override the
 
 - [x] 00 Foundation — Maven multi-module build, Docker Compose, CI, project board
 - [x] 01 Dispatch domain — `DispatchOrder` aggregate, value objects, domain events, ArchUnit guard ([ADR 0002](docs/adr/0002-hexagonal-architecture-and-domain-events.md))
-- [ ] 02 Dispatch API
+- [x] 02 Dispatch API — use cases, REST with RFC 9457 errors, PostgreSQL + Flyway, optimistic locking, OpenAPI
 - [ ] 03 Dispatch events (Kafka + outbox)
 - [ ] 04 Tracking service (reactive)
 - [ ] 05 Resilience & observability

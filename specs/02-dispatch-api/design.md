@@ -84,8 +84,10 @@ Driving adapter (REST) → driving ports (use cases) → application services �
 - `ApiExceptionHandler` grows with the tasks: 02.4 `VALIDATION_FAILED` and `ORDER_NOT_FOUND`;
   02.5 `INVALID_TRANSITION`; 02.6 `CONCURRENT_MODIFICATION`, `DomainValidationException`,
   malformed JSON, plus the test of every code's shape.
-- `ClockConfig` (`Clock.systemUTC()`) and `UseCaseConfig` (registers `OrderApplicationService`)
-  are created in 02.4, the first task that needs the use cases as beans.
+- `ClockConfig` (UTC, ticking in whole microseconds: `timestamptz` keeps microseconds and rounds
+  finer values, so this keeps command responses equal to later reads) and `UseCaseConfig`
+  (registers `OrderApplicationService`) are created in 02.4, the first task that needs the use
+  cases as beans.
 - Error codes (every error body has `code`):
 
   | Situation | Status | `code` | Extra properties |
@@ -161,6 +163,7 @@ Error body example:
 | Decision | Why | ADR |
 | --- | --- | --- |
 | Separate JPA entity from domain | Domain stays framework-free; persistence can change | 0002 |
+| Optimistic-lock version on the JPA entity only | Detects concurrent requests without leaking persistence into the domain | 0003 |
 | Action endpoints (`/approve`) instead of `PATCH status` | Explicit intent, maps 1:1 to use cases | — |
 | ProblemDetail + `code` | Standard (RFC 9457) and machine-readable | — |
 
@@ -170,6 +173,8 @@ Error body example:
 | --- | --- | --- |
 | API-1.x, 2.x (logic) | `OrderApplicationServiceTest` (Mockito for `OrderRepository`) | unit |
 | API-1.x, 2.x, NF-1 (HTTP) | `OrderControllerTest` (`@WebMvcTest`, use cases mocked) | slice |
+| API-1.2, 1.4, 2.3, 2.4 (errors) | `ApiExceptionHandlerTest` (`@WebMvcTest`, every row of the error-code table) | slice |
+| API-1.5, 2.2 (commands) | `ChangeStatusCommandTest`, `OrderPageQueryTest`, `OrderPageTest`, `OrderNotFoundExceptionTest` | unit |
 | API-3.x | `OrderPersistenceIT` (Testcontainers PostgreSQL, Flyway) | IT |
 | API-2.4 | `OptimisticLockingIT` | IT |
 | End to end | `OrderApiIT` (`@SpringBootTest` + Testcontainers + `RestClient`) | IT |

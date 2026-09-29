@@ -35,6 +35,6 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `OpenApiIT`; `OrderApiIT` runs create → approve → dispatch → deliver against real Postgres.
   - Code: springdoc dependency, API metadata.
   - _Req: API-4.1_
-- [ ] **02.8** Verify phase: `/spec-review 02`, coverage ≥ 80% on `application`, README "How to run"
+- [x] **02.8** Verify phase: `/spec-review 02`, coverage ≥ 80% on `application`, README "How to run"
   with `curl` examples.
   - _Req: API-NF-2_
