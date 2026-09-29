@@ -67,7 +67,7 @@ Local credentials are development defaults in `docker-compose.yml`; override the
 ## Roadmap
 
 - [x] 00 Foundation — Maven multi-module build, Docker Compose, CI, project board
-- [ ] 01 Dispatch domain
+- [x] 01 Dispatch domain — `DispatchOrder` aggregate, value objects, domain events, ArchUnit guard ([ADR 0002](docs/adr/0002-hexagonal-architecture-and-domain-events.md))
 - [ ] 02 Dispatch API
 - [ ] 03 Dispatch events (Kafka + outbox)
 - [ ] 04 Tracking service (reactive)

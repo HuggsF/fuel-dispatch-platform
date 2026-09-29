@@ -29,5 +29,5 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - _Req: DOM-4.1, DOM-4.2_
 - [x] **01.7** ADR 0002 hexagonal architecture + domain events
   - _Req: DOM-4.2_
-- [ ] **01.8** Verify phase: `/spec-review 01`, JaCoCo 100% branches on `domain`, README roadmap updated.
+- [x] **01.8** Verify phase: `/spec-review 01`, JaCoCo 100% branches on `domain`, README roadmap updated.
   - _Req: DOM-NF-1_
