@@ -20,7 +20,7 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | `OutboxDomainEventPublisher` | `adapter.out.messaging` | Implements the port by writing outbox rows (joins the caller's tx: `Propagation.MANDATORY`) |
 | `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED`. The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
 | `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
-| `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)` |
+| `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)`. Stops the batch at the first failure (see below). Off when `outbox.relay.enabled=false` (tests that inspect unpublished rows) |
 | `OutboxCleanup` | `adapter.out.messaging` | Daily; deletes published rows older than 7 days |
 | `KafkaTopicConfig` | `config` | `NewTopic dispatch.orders.v1` (3 partitions, replication 1 locally) |
 
@@ -32,6 +32,12 @@ nothing but the event and `DomainEventPublisher.publish(List<DomainEvent>)` stay
 The mapper builds the envelope as a Jackson `ObjectNode` by hand (`toJson(event)`), so the wire
 format does not depend on `ObjectMapper` settings; `eventType(event)` gives the name used for the
 outbox row and the Kafka header.
+
+Relay failure handling: rows are sent one at a time, oldest first. On the first failure the
+batch stops; rows already acknowledged are marked published when the batch commits, the failed
+row and every later one wait for the next poll. Skipping only the failed row would let a later
+event of the same order overtake it (EVT-2.2). `max.block.ms=5000` makes `send` fail fast when
+Kafka is down, so the relay never holds its transaction for the producer's default 60 s.
 
 Producer settings: `acks=all`, `enable.idempotence=true`, `StringSerializer` for key and value.
 The value is the outbox `payload` — JSON already built by `DispatchOrderEventMapper` — so no

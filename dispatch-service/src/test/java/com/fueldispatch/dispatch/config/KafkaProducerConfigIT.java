@@ -31,6 +31,17 @@ class KafkaProducerConfigIT {
                 .isEqualTo("true");
     }
 
+    // EVT-1.3: with Kafka down, send fails within seconds instead of blocking the relay.
+    @Test
+    void producer_blocksAtMostFiveSecondsWaitingForKafka() {
+        assertThat(
+                        String.valueOf(
+                                producerFactory
+                                        .getConfigurationProperties()
+                                        .get(ProducerConfig.MAX_BLOCK_MS_CONFIG)))
+                .isEqualTo("5000");
+    }
+
     // EVT-2.2 (key = orderId as text), EVT-3.3 (plain JSON text, no Spring type headers)
     @Test
     void producer_sendsKeyAndValueAsPlainStrings() {

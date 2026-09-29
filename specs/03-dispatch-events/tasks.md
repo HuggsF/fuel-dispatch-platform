@@ -22,7 +22,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     settings and topic created with 3 partitions.
   - Code: spring-kafka dependency, producer properties, `KafkaTopicConfig`; Kafka UI in compose (optional).
   - _Req: EVT-2.2, EVT-3.3_
-- [ ] **03.5** Outbox relay
+- [x] **03.5** Outbox relay
   - Test: `OutboxRelayIT`, `OutboxRelayFailureTest`.
   - Code: `OutboxRelay` with key = orderId and headers.
   - _Req: EVT-2.1, EVT-2.2, EVT-2.3, EVT-2.4, EVT-1.3, EVT-3.3_

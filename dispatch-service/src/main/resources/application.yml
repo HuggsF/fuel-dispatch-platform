@@ -23,6 +23,9 @@ spring:
       acks: all
       properties:
         enable.idempotence: true
+        # Fail fast when Kafka is down instead of blocking the relay's transaction for 60 s;
+        # the rows stay in the outbox and are retried on the next poll (EVT-1.3, EVT-2.4).
+        max.block.ms: 5000
 
 server:
   port: 8081

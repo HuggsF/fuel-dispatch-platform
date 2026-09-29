@@ -35,8 +35,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** The outbox shares the order's transaction (EVT-1.1, EVT-1.2) on a real PostgreSQL. */
-@SpringBootTest
+/**
+ * The outbox shares the order's transaction (EVT-1.1, EVT-1.2) on a real PostgreSQL. The relay is
+ * off, so rows stay unpublished while they are inspected.
+ */
+@SpringBootTest(properties = "outbox.relay.enabled=false")
 @Import(TestcontainersConfiguration.class)
 class OutboxTransactionIT {
 

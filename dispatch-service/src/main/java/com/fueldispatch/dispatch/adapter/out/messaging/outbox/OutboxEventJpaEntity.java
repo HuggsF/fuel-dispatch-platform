@@ -61,6 +61,27 @@ public class OutboxEventJpaEntity implements Persistable<UUID> {
         return id;
     }
 
+    public UUID getAggregateId() {
+        return aggregateId;
+    }
+
+    public String getEventType() {
+        return eventType;
+    }
+
+    public String getPayload() {
+        return payload;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
+
+    /** Kafka acknowledged the event (EVT-2.3). */
+    public void markPublished(Instant when) {
+        this.publishedAt = Objects.requireNonNull(when, "when");
+    }
+
     @Override
     public boolean isNew() {
         return isNew;
