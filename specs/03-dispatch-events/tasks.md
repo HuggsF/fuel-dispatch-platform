@@ -30,7 +30,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `OutboxLockingIT`.
   - Code: head-of-line native query with `FOR UPDATE SKIP LOCKED`; `V3` index.
   - _Req: EVT-2.5, EVT-2.6_
-- [ ] **03.7** Cleanup job
+- [x] **03.7** Cleanup job
   - Test: `OutboxCleanupIT`.
   - _Req: EVT-NF-1_
 - [ ] **03.8** ADR 0004 outbox + at-least-once; architecture diagram in README.

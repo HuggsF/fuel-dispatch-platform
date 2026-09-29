@@ -1,9 +1,12 @@
 package com.fueldispatch.dispatch.adapter.out.messaging.outbox;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface SpringDataOutboxRepository extends JpaRepository<OutboxEventJpaEntity, UUID> {
 
@@ -31,4 +34,9 @@ public interface SpringDataOutboxRepository extends JpaRepository<OutboxEventJpa
     List<OutboxEventJpaEntity> lockNextBatch();
 
     long countByPublishedAtIsNull();
+
+    /** Deletes rows published before {@code cutoff}; unpublished rows never match (EVT-NF-1). */
+    @Modifying
+    @Query("delete from OutboxEventJpaEntity e where e.publishedAt < :cutoff")
+    int deletePublishedBefore(@Param("cutoff") Instant cutoff);
 }

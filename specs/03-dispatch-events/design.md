@@ -21,7 +21,7 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED` that takes only the oldest unpublished row of each order (head of line), so parallel relays never reorder an order's events (EVT-2.6). The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
 | `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
 | `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)`. Stops the batch at the first failure (see below). Off when `outbox.relay.enabled=false` (tests that inspect unpublished rows) |
-| `OutboxCleanup` | `adapter.out.messaging` | Daily; deletes published rows older than 7 days |
+| `OutboxCleanup` | `adapter.out.messaging` | Daily (`outbox.cleanup.cron`, default 03:00 UTC); deletes rows whose `published_at` is more than `outbox.cleanup.retention` (default `P7D`) ago. Retention counts from publication, so an event relayed late after a Kafka outage is kept for the full period; unpublished rows are never deleted |
 | `KafkaTopicConfig` | `config` | `NewTopic dispatch.orders.v1` (3 partitions, replication 1 locally) |
 
 The service saves the order, then publishes `order.pullDomainEvents()` — pulled from the
