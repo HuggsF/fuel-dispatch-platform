@@ -12,7 +12,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Code: JPA + Flyway + PostgreSQL driver deps, `V1__create_dispatch_order.sql`, entity, mapper,
     adapter; datasource config pointing to compose / Testcontainers.
   - _Req: API-1.5, API-3.1, API-3.2_
-- [ ] **02.3** Optimistic locking
+- [x] **02.3** Optimistic locking
   - Test: `OptimisticLockingIT` — two interleaved transactions load the same order and approve
     it; the first commits, the second fails with `OptimisticLockingFailureException`.
   - Code: `@Version` on the JPA entity (the domain stays unaware of versions).

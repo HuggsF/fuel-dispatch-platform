@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -60,9 +61,13 @@ class DispatchOrderJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    /** Plain column for now; task 02.3 turns it into {@code @Version} (API-2.4). */
+    /**
+     * Optimistic lock (API-2.4). Null until first persisted, which tells Spring Data to insert
+     * instead of merging.
+     */
+    @Version
     @Column(name = "version", nullable = false)
-    private long version;
+    private Long version;
 
     protected DispatchOrderJpaEntity() {}
 
