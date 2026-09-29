@@ -86,6 +86,22 @@ Driving adapter (REST) → driving ports (use cases) → application services �
   malformed JSON, plus the test of every code's shape.
 - `ClockConfig` (`Clock.systemUTC()`) and `UseCaseConfig` (registers `OrderApplicationService`)
   are created in 02.4, the first task that needs the use cases as beans.
+- Error codes (every error body has `code`):
+
+  | Situation | Status | `code` | Extra properties |
+  | --- | --- | --- | --- |
+  | Bean Validation on body, path or query | 400 | `VALIDATION_FAILED` | `errors` |
+  | Wrong JSON type for a known field (e.g. `"quantityM3": "abc"`), bad UUID in the path, unknown `status` | 400 | `VALIDATION_FAILED` | `errors` (that one field, "has an invalid value") |
+  | `DomainValidationException` (safety net; the DTOs normally catch it first) | 400 | `VALIDATION_FAILED` | none (domain message in `detail`) |
+  | Unparseable or missing body | 400 | `MALFORMED_REQUEST` | — |
+  | `OrderNotFoundException` | 404 | `ORDER_NOT_FOUND` | — |
+  | `InvalidOrderTransitionException` | 409 | `INVALID_TRANSITION` | `currentStatus`, `action` |
+  | `OptimisticLockingFailureException` | 409 | `CONCURRENT_MODIFICATION` | — ("reload the order and retry") |
+  | Other Spring MVC errors (unknown route, 405, 415, 406) | as Spring decides | the `HttpStatus` name, e.g. `METHOD_NOT_ALLOWED` | — |
+  | Anything else | 500 | `INTERNAL_ERROR` | — (generic `detail`, exception logged, never exposed) |
+
+- `ApiExceptionHandlerTest` (`@WebMvcTest`, use cases mocked) checks the full shape of each
+  row: `type`, `title`, `status`, `detail`, `code`, `application/problem+json`.
 
 Error body example:
 
