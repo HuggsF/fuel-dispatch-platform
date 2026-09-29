@@ -21,7 +21,7 @@ the lifecycle is encoded in `OrderStatus` so that allowed transitions live in on
 | `DeliveryWindow` | record (`Instant start`, `Instant end`) | `end` after `start` |
 | `CancellationReason` | record (`String value`) | Non-blank, ≤ 500 chars |
 | `OrderStatus` | enum | `canTransitionTo(OrderStatus)`; terminal flags |
-| `OrderAction` | enum | `APPROVE`, `DISPATCH`, `DELIVER`, `CANCEL` — used in error messages |
+| `OrderAction` | enum | `APPROVE`, `DISPATCH`, `DELIVER`, `CANCEL` — used in error messages; `targetStatus()` gives the status each action leads to |
 | `DomainEvent` | sealed interface | `eventId()`, `orderId()`, `occurredAt()` |
 | `OrderCreated`, `OrderApproved`, `OrderDispatched`, `OrderDelivered`, `OrderCancelled` | records implementing `DomainEvent` | Event payloads |
 | `DomainValidationException` | runtime exception | Invalid input (DOM-1.2–1.5, 2.6) |
@@ -30,7 +30,51 @@ the lifecycle is encoded in `OrderStatus` so that allowed transitions live in on
 `java.time.Clock` is passed into `create` and each transition, so tests control time without
 mocks (`Clock.fixed`).
 
+### Aggregate and event details
+
+- `DispatchOrder.create(vessel, berth, fuelType, quantity, deliveryWindow, clock)`: a missing
+  order component throws `DomainValidationException`; a missing `clock` is a programming error
+  (`NullPointerException`). On creation `updatedAt` equals `createdAt`.
+- `domainEvents()` returns a read-only copy of the events registered and not yet pulled, so tests
+  (and task 01.4's "no event on invalid transition") can inspect them without clearing;
+  `pullDomainEvents()` (DOM-3.1) is the method the application layer uses.
+- `DispatchOrder.rehydrate(id, vessel, berth, fuelType, quantity, deliveryWindow, status,
+  createdAt, updatedAt, cancellationReason)` rebuilds a persisted order and registers no events.
+  All components except `cancellationReason` are required (`DomainValidationException`), and
+  `cancellationReason` must be present for `CANCELLED` and `null` otherwise, so corrupt rows are
+  rejected instead of producing an order that breaks the invariants. `create` goes through the
+  same checks.
+- `pullDomainEvents()` returns an immutable list of the pending events in registration order and
+  clears them (DOM-3.1).
+- Transitions: `approve(clock)`, `dispatch(clock)`, `deliver(clock)`,
+  `cancel(CancellationReason reason, clock)`. Each checks the transition table before touching any
+  state, so a rejected call changes nothing (DOM-2.5). `cancel` rejects a missing reason with
+  `DomainValidationException` before checking the transition; blank/too-long reasons are already
+  impossible because `CancellationReason` validates itself (DOM-2.6).
+  `cancellationReason()` returns `Optional<CancellationReason>`, present only once cancelled.
+- `InvalidOrderTransitionException` exposes `currentStatus()` and `action()`; its message is
+  `cannot <ACTION> an order in status <STATUS>`.
+- Every event gets a random `eventId` (UUID) and `occurredAt` from the clock (DOM-3.2).
+  `OrderCreated` carries the full order snapshot — `status`, `vessel`, `berth`, `fuelType`,
+  `quantity`, `deliveryWindow` — so consumers can build their view without calling the service.
+  `OrderApproved`, `OrderDispatched`, `OrderDelivered` carry the new `status`; `OrderCancelled`
+  also carries the `reason`.
+
+### Value object validation details
+
+- `null` for any component is rejected with `DomainValidationException` (never a bare NPE), so
+  adapters can map every invalid input to the same error.
+- Text values are stored trimmed (`String.strip()`): vessel name, IMO, berth, cancellation reason.
+  The 500-character limit of `CancellationReason` applies to the trimmed value.
+- `Vessel.imo` must match `[0-9]{7}` (ASCII digits only; the IMO check digit is not validated).
+- `Quantity` rejects values with more than 3 significant decimal places (e.g. `1.2345`) instead of
+  rounding them — silently changing a fuel volume is not acceptable. Trailing zeros are ignored
+  (`1.50000` is valid). Accepted values are normalized to scale 3, so `7.5` equals `7.500`.
+
 ## Transition table (single source of truth in `OrderStatus`)
+
+A cell (from, action) is allowed iff `from.canTransitionTo(action.targetStatus())`; the result is
+`action.targetStatus()`.
 
 | From \ Action | APPROVE | DISPATCH | DELIVER | CANCEL |
 | --- | --- | --- | --- | --- |
@@ -53,10 +97,29 @@ mocks (`Clock.fixed`).
 
 | Requirement IDs | Test class | Type |
 | --- | --- | --- |
-| DOM-1.2–1.5 | `QuantityTest`, `DeliveryWindowTest`, `VesselTest`, `BerthTest` | unit |
+| DOM-1.2–1.5 | `QuantityTest`, `DeliveryWindowTest`, `VesselTest`, `BerthTest` (+ `OrderIdTest`, `FuelTypeTest`) | unit |
 | DOM-1.1, 1.6, 2.x, 3.x | `DispatchOrderTest` (parameterized over the transition table) | unit |
 | DOM-2.6 | `CancellationReasonTest` | unit |
 | DOM-4.x | `HexagonalArchitectureTest` (ArchUnit) | unit |
+
+### Architecture rules (`HexagonalArchitectureTest`)
+
+Plain JUnit 5 tests that `check` ArchUnit rules against the production classes of
+`com.fueldispatch.dispatch` (test classes excluded):
+
+| Rule | Source in `structure.md` |
+| --- | --- |
+| `..domain..` depends only on `java..` and `..domain..` | DOM-4.1 |
+| `..application..` does not depend on `..adapter..` or `..config..` | application row |
+| `..application..` outside `service` depends only on `java..`, `..domain..`, `..application..` | application row (frameworks) |
+| `..application.service..` may additionally use only `@Service` and `@Transactional` | framework allowance |
+| `..adapter..` does not depend on `..application.service..` or `..config..` | adapter row (ports only) |
+| slices `..adapter.(*).(*)..` do not depend on each other | adapter row (no other adapters) |
+
+Rules for layers that are still empty use `allowEmptyShould(true)`; the domain rule does not, so
+it fails if the domain disappears. Because an empty layer passes any rule, a nested test runs
+every rule against deliberately broken classes in the test package `archfixture` and asserts that
+each one is rejected (and that `@Service` in a service is accepted).
 
 ## Traceability
 
