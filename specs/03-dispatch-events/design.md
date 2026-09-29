@@ -63,6 +63,19 @@ JSON Schema draft 2020-12. Example:
 }
 ```
 
+Rules the schema enforces (beyond the required fields of EVT-3.2):
+
+- `data.status` matches `eventType` (`OrderApproved` → `APPROVED`, …).
+- `reason` is a non-blank string of at most 500 characters on `OrderCancelled`; null or absent
+  on every other event type.
+- `vesselImo` is 7 digits; `fuelType` is `MGO`/`VLSFO`/`HFO`; `quantityM3` is in (0, 10000] with
+  at most 3 decimals — the same rules as the domain (BR-1, BR-3, BR-5).
+- `eventId`/`orderId` are UUIDs; `occurredAt` is an RFC 3339 date-time in UTC (`Z`).
+- Unknown fields are allowed (no `additionalProperties: false`), so additive changes stay `v1`.
+
+Tests load the schema from `../contracts/` (module working directory) with networknt
+json-schema-validator 2.x — the last line on Jackson 2 — with format assertions enabled.
+
 Versioning rule: additive, optional fields keep `v1`; anything else creates `v2` and a new topic
 `dispatch.orders.v2` published in parallel during migration.
 

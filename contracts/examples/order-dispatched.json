@@ -1,0 +1,16 @@
+{
+  "eventId": "3c8f2a61-7e4d-4b9a-8d15-6f2e9c1b7a03",
+  "eventType": "OrderDispatched",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-05T14:40:05.118Z",
+  "orderId": "1f0e4c8a-3b7d-4e2a-9c61-5d8f2a7b9e10",
+  "data": {
+    "status": "DISPATCHED",
+    "vesselName": "MV Atlantic Star",
+    "vesselImo": "9321483",
+    "berth": "B-03",
+    "fuelType": "VLSFO",
+    "quantityM3": 850.125,
+    "reason": null
+  }
+}

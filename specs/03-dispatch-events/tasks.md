@@ -2,7 +2,7 @@
 
 Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is green.
 
-- [ ] **03.1** Event contract
+- [x] **03.1** Event contract
   - Test: example JSON files for each event type validate against the schema; an invalid one fails.
   - Code: `contracts/dispatch-order-event.v1.schema.json`, `contracts/examples/*.json`.
   - _Req: EVT-3.1, EVT-3.2_

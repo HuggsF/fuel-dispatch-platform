@@ -34,6 +34,8 @@
         <springdoc.version>2.9.1</springdoc.version>
         <resilience4j.version>2.4.0</resilience4j.version>
         <archunit.version>1.5.1</archunit.version>
+        <!-- 2.x is the last line on Jackson 2 (3.x moved to Jackson 3). -->
+        <json-schema-validator.version>2.0.7</json-schema-validator.version>
 
         <!-- Build plugins not managed by spring-boot-starter-parent (FND-1.4) -->
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
@@ -73,6 +75,11 @@
                 <groupId>com.tngtech.archunit</groupId>
                 <artifactId>archunit-junit5</artifactId>
                 <version>${archunit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.networknt</groupId>
+                <artifactId>json-schema-validator</artifactId>
+                <version>${json-schema-validator.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

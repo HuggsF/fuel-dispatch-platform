@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fueldispatch:contracts:dispatch-order-event:v1",
+  "title": "DispatchOrderEvent v1",
+  "description": "A state change of a dispatch order, published by dispatch-service to Kafka topic dispatch.orders.v1 (key = orderId). Versioning: additive, optional fields keep v1, so consumers must ignore unknown fields; any other change creates v2 and topic dispatch.orders.v2.",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "orderId", "data"],
+  "properties": {
+    "eventId": {
+      "description": "Unique id of this event; consumers deduplicate by it.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "enum": ["OrderCreated", "OrderApproved", "OrderDispatched", "OrderDelivered", "OrderCancelled"]
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "description": "When the state change happened, ISO-8601 in UTC.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "data": {
+      "$ref": "#/$defs/orderData"
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "eventType": { "const": "OrderCreated" } } }, "then": { "properties": { "data": { "properties": { "status": { "const": "CREATED" } } } } } },
+    { "if": { "properties": { "eventType": { "const": "OrderApproved" } } }, "then": { "properties": { "data": { "properties": { "status": { "const": "APPROVED" } } } } } },
+    { "if": { "properties": { "eventType": { "const": "OrderDispatched" } } }, "then": { "properties": { "data": { "properties": { "status": { "const": "DISPATCHED" } } } } } },
+    { "if": { "properties": { "eventType": { "const": "OrderDelivered" } } }, "then": { "properties": { "data": { "properties": { "status": { "const": "DELIVERED" } } } } } },
+    {
+      "if": { "properties": { "eventType": { "const": "OrderCancelled" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "required": ["reason"],
+            "properties": {
+              "status": { "const": "CANCELLED" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "data": {
+            "properties": {
+              "reason": { "type": "null" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "nonBlankString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "orderData": {
+      "description": "Snapshot of the order after the change.",
+      "type": "object",
+      "required": ["status", "vesselName", "vesselImo", "berth", "fuelType", "quantityM3"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["CREATED", "APPROVED", "DISPATCHED", "DELIVERED", "CANCELLED"]
+        },
+        "vesselName": { "$ref": "#/$defs/nonBlankString" },
+        "vesselImo": {
+          "description": "IMO number: exactly 7 digits (BR-3).",
+          "type": "string",
+          "pattern": "^[0-9]{7}$"
+        },
+        "berth": { "$ref": "#/$defs/nonBlankString" },
+        "fuelType": {
+          "type": "string",
+          "enum": ["MGO", "VLSFO", "HFO"]
+        },
+        "quantityM3": {
+          "description": "Volume in cubic metres: greater than 0, at most 10,000, at most 3 decimal places (BR-1).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000,
+          "multipleOf": 0.001
+        },
+        "reason": {
+          "description": "Cancellation reason (BR-5). Present and non-blank on OrderCancelled; null or absent otherwise.",
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/nonBlankString", "maxLength": 500 }
+          ]
+        }
+      }
+    }
+  }
+}
