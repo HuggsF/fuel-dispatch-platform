@@ -55,6 +55,10 @@ order arriving in order (EVT-2.2).
 
 - Events are durable as soon as the order commits; Kafka outages only delay them.
 - Consumers **must** be idempotent (dedupe by `eventId`) — a requirement for phase 04.
+- The producer gives up on a send before the relay stops waiting for it (`delivery.timeout.ms`
+  5 s < relay wait 6 s). Otherwise every failed poll during an outage leaves a buffered copy that
+  is delivered when Kafka returns. With this setting an outage of any length costs at most one
+  extra copy (a request already on the wire), measured by `OutboxKafkaOutageIT`.
 - Latency between a command and its event is up to the relay interval (1 s by default) plus the
   send; acceptable for a status feed.
 - Per-order ordering holds with any number of relays, at the price of at most one event per order

@@ -5,11 +5,15 @@ Status: approved
 ## Overview
 
 ```
-use case (tx) ──save order──▶ orders table
-              └─pullDomainEvents─▶ OutboxWriter ──▶ outbox_event table   (same tx)
+use case (tx) ──save order──▶ dispatch_order
+              └─pullDomainEvents─▶ OutboxDomainEventPublisher ──▶ outbox_event   (same tx)
 
-OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──▶ KafkaTemplate.send(key=orderId)
-                                   ◀──ack── mark published_at
+OutboxRelay (@Scheduled, every 1s, own tx)
+   ──lockNextBatch: oldest unpublished row of each order, FOR UPDATE SKIP LOCKED, limit 100──▶
+   KafkaTemplate.send(key=orderId, headers eventType/eventId).get(6 s)
+   ◀──ack── mark published_at        (first failure stops the batch)
+
+OutboxCleanup (daily) ──delete rows published more than 7 days ago
 ```
 
 ## Components
@@ -20,7 +24,7 @@ OutboxRelay (@Scheduled, every 1s) ──select … FOR UPDATE SKIP LOCKED──
 | `OutboxDomainEventPublisher` | `adapter.out.messaging` | Implements the port by writing outbox rows (joins the caller's tx: `Propagation.MANDATORY`) |
 | `OutboxEventJpaEntity`, `SpringDataOutboxRepository` | `adapter.out.messaging.outbox` | Native query with `FOR UPDATE SKIP LOCKED` that takes only the oldest unpublished row of each order (head of line), so parallel relays never reorder an order's events (EVT-2.6). The entity implements `Persistable` (id = domain eventId), so new rows are inserted without a prior select |
 | `DispatchOrderEventMapper` | `adapter.out.messaging` | Exhaustive `switch` over the sealed `DomainEvent` → JSON envelope. Common order data comes from `DomainEvent` accessors (`status`, `vessel`, `berth`, `fuelType`, `quantity`); the switch picks `eventType` and `reason` |
-| `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(5, SECONDS)`. Stops the batch at the first failure (see below). Off when `outbox.relay.enabled=false` (tests that inspect unpublished rows) |
+| `OutboxRelay` | `adapter.out.messaging` | `@Scheduled(fixedDelayString="${outbox.relay.interval:1000}")`; own transaction per batch; `send(...).get(6, SECONDS)`, longer than the producer's `delivery.timeout.ms` (5 s). Stops the batch at the first failure (see below). Off when `outbox.relay.enabled=false` (tests that inspect unpublished rows) |
 | `OutboxCleanup` | `adapter.out.messaging` | Daily (`outbox.cleanup.cron`, default 03:00 UTC); deletes rows whose `published_at` is more than `outbox.cleanup.retention` (default `P7D`) ago. Retention counts from publication, so an event relayed late after a Kafka outage is kept for the full period; unpublished rows are never deleted |
 | `KafkaTopicConfig` | `config` | `NewTopic dispatch.orders.v1` (3 partitions, replication 1 locally) |
 
@@ -39,9 +43,17 @@ row and every later one wait for the next poll. Skipping only the failed row wou
 event of the same order overtake it (EVT-2.2). `max.block.ms=5000` makes `send` fail fast when
 Kafka is down, so the relay never holds its transaction for the producer's default 60 s.
 
+The producer also gives up on a send before the relay stops waiting for it
+(`request.timeout.ms=4000`, `delivery.timeout.ms=5000` < the relay's 6 s). With the defaults
+(120 s) a send the relay counted as failed stayed buffered in the producer and was delivered when
+Kafka came back, next to the relay's retry: one duplicate per failed poll during an outage (the
+phase review measured 4 copies after 3 failed polls). Now an outage costs at most one extra copy —
+a request already on the wire when the broker stopped answering — whatever its length
+(`OutboxKafkaOutageIT`).
+
 Producer settings: `acks=all`, `enable.idempotence=true`, `StringSerializer` for key and value.
-The value is the outbox `payload` — JSON already built by `DispatchOrderEventMapper` — so no
-Spring `JsonSerializer` type headers reach the contract. The topic name is
+The value is the outbox `payload` — JSON already built by `DispatchOrderEventMapper`, stored and
+sent verbatim — so no Spring `JsonSerializer` type headers reach the contract. The topic name is
 `DispatchOrderEventMapper.TOPIC` (tied to the contract version); partitions and replicas come
 from `dispatch.kafka.topic.partitions` / `.replicas` (defaults 3 / 1). Kafka UI
 (`kafbat/kafka-ui`) runs in compose on port 8090.
@@ -53,11 +65,16 @@ from `dispatch.kafka.topic.partitions` / `.replicas` (defaults 3 / 1). Kafka UI
 | `id` | `uuid` PK (= eventId) |
 | `aggregate_id` | `uuid` not null |
 | `event_type` | `varchar(50)` not null |
-| `payload` | `jsonb` not null |
+| `payload` | `jsonb` not null — `json` since V4 |
 | `occurred_at` | `timestamptz` not null |
 | `published_at` | `timestamptz` null |
 
 Partial index: `create index … on outbox_event (occurred_at) where published_at is null`.
+
+`V4__keep_outbox_payload_verbatim.sql` turns `payload` into `json`: `jsonb` normalises the text
+(key order, whitespace), so Kafka received a rewritten JSON instead of the mapper's. `json` still
+rejects invalid JSON but keeps the text as written. The entity binds the payload as text with a
+`?::json` cast (`@ColumnTransformer`), because Hibernate's JSON type would bind it as `jsonb`.
 
 `V3__index_outbox_head_of_line.sql`: partial index on `(aggregate_id, occurred_at) where
 published_at is null`, used by the head-of-line `not exists` of the relay query.
@@ -113,9 +130,12 @@ Versioning rule: additive, optional fields keep `v1`; anything else creates `v2`
 
 | Requirement IDs | Test | Type |
 | --- | --- | --- |
-| EVT-1.1, 1.2 | `OutboxTransactionIT` — commit writes rows; forced exception writes none | IT (Postgres) |
-| EVT-3.x | `DispatchOrderEventMapperTest` + validation against the JSON Schema (networknt json-schema-validator) | unit |
-| EVT-2.1–2.3 | `OutboxRelayIT` — Testcontainers Postgres + Kafka; consume from topic; row marked published | IT |
-| EVT-2.4, 1.3 | `OutboxRelayFailureTest` — `KafkaTemplate` mocked to fail; row stays unpublished | unit |
-| EVT-2.5, 2.6 | `OutboxLockingIT` — two relays in parallel publish each row once; an order's second event is not picked while its first is locked by another relay | IT |
-| EVT-NF-1 | `OutboxCleanupIT` | IT |
+| EVT-3.1, 3.2 | `DispatchOrderEventContractTest` — examples of every event type validate; 26 broken variants fail | unit |
+| EVT-3.1, 3.2, DOM-3.2 | `DispatchOrderEventMapperTest` — every domain event maps to a schema-valid envelope; `DispatchOrderTest` — every event carries the order data | unit |
+| EVT-1.1, 1.2 | `OutboxTransactionIT` — commit writes rows (payload verbatim, schema-valid); rollback writes none; `publish` outside a transaction is rejected. `OrderApplicationServiceTest` — events published after `save` | IT (Postgres) / unit |
+| EVT-2.2, 3.3, 1.3 | `KafkaTopicConfigTest`, `KafkaProducerConfigIT` — topic with 3 partitions, string key/value, `acks=all`, idempotence, `max.block.ms` | unit / IT (Kafka) |
+| EVT-2.1–2.3, 3.1, 3.3 | `OutboxRelayIT` — scheduled relay, consume from topic: in order, same partition, headers, verbatim schema-valid value; rows marked published | IT (Postgres + Kafka) |
+| EVT-2.1–2.4, 1.3, 3.3 | `OutboxRelayFailureTest` — `KafkaTemplate` mocked: ack marks published; failure stops the batch; retry on the next poll; Kafka unavailable | unit |
+| EVT-1.3, 2.4 | `OutboxKafkaOutageIT` — broker paused: commands still succeed, event waits in the outbox, published once Kafka is back with at most one extra copy; producer gives up before the relay | IT (Postgres + Kafka) |
+| EVT-2.1, 2.5, 2.6 | `OutboxLockingIT` — batch limit of 100 oldest first; a locked batch is skipped and an order's next event waits behind it; two relays in parallel publish each event once and in order | IT (Postgres + Kafka) |
+| EVT-NF-1 | `OutboxCleanupIT` — only rows published more than 7 days ago are deleted | IT (Postgres) |

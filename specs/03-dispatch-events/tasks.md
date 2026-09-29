@@ -34,4 +34,4 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `OutboxCleanupIT`.
   - _Req: EVT-NF-1_
 - [x] **03.8** ADR 0004 outbox + at-least-once; architecture diagram in README.
-- [ ] **03.9** Verify phase: `/spec-review 03`; demo: create an order and see the event in Kafka UI.
+- [x] **03.9** Verify phase: `/spec-review 03`; demo: create an order and see the event in Kafka UI.
