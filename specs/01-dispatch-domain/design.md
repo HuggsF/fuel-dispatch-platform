@@ -112,14 +112,14 @@ Plain JUnit 5 tests that `check` ArchUnit rules against the production classes o
 | `..domain..` depends only on `java..` and `..domain..` | DOM-4.1 |
 | `..application..` does not depend on `..adapter..` or `..config..` | application row |
 | `..application..` outside `service` depends only on `java..`, `..domain..`, `..application..` | application row (frameworks) |
-| `..application.service..` may additionally use only `@Service` and `@Transactional` | framework allowance |
+| `..application.service..` may additionally use only `@Service` and `@Transactional` (plus its attribute enums `Propagation` and `Isolation`) | framework allowance |
 | `..adapter..` does not depend on `..application.service..` or `..config..` | adapter row (ports only) |
 | slices `..adapter.(*).(*)..` do not depend on each other | adapter row (no other adapters) |
 
 Rules for layers that are still empty use `allowEmptyShould(true)`; the domain rule does not, so
 it fails if the domain disappears. Because an empty layer passes any rule, a nested test runs
 every rule against deliberately broken classes in the test package `archfixture` and asserts that
-each one is rejected (and that `@Service` in a service is accepted).
+each one is rejected (and that `@Service` and `@Transactional` in a service are accepted).
 
 ## Traceability
 

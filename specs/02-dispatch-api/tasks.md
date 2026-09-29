@@ -2,7 +2,7 @@
 
 Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is green.
 
-- [ ] **02.1** Ports and application service
+- [x] **02.1** Ports and application service
   - Test: `OrderApplicationServiceTest` — create saves once; each action loads, transitions, saves;
     unknown id throws `OrderNotFoundException`.
   - Code: `port.in`, `port.out`, `OrderApplicationService`, `OrderNotFoundException`.
