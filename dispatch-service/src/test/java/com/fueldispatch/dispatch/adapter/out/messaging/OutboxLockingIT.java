@@ -7,6 +7,7 @@ import com.fueldispatch.dispatch.TestcontainersConfiguration;
 import com.fueldispatch.dispatch.adapter.out.messaging.outbox.OutboxEventJpaEntity;
 import com.fueldispatch.dispatch.adapter.out.messaging.outbox.SpringDataOutboxRepository;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,14 +28,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.kafka.KafkaConnectionDetails;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Several relays at once never publish a row twice (EVT-2.5) and never reorder the events of one
- * order (EVT-2.6), on real PostgreSQL and Kafka. The scheduler is slowed to once an hour so the
- * test drives the relays itself.
+ * order (EVT-2.6), on real PostgreSQL and Kafka. The scheduled relay is off, so nothing but the
+ * test's own relays touches the outbox.
  */
-@SpringBootTest(properties = "outbox.relay.interval=3600000")
+@SpringBootTest(properties = "outbox.relay.enabled=false")
 @Import(TestcontainersConfiguration.class)
 class OutboxLockingIT {
 
@@ -43,7 +45,8 @@ class OutboxLockingIT {
 
     @Autowired private SpringDataOutboxRepository repository;
     @Autowired private TransactionTemplate transactionTemplate;
-    @Autowired private OutboxRelay relay;
+    @Autowired private KafkaTemplate<String, String> kafkaTemplate;
+    @Autowired private Clock clock;
     @Autowired private KafkaConnectionDetails kafka;
 
     @BeforeEach
@@ -109,8 +112,12 @@ class OutboxLockingIT {
         try (KafkaConsumer<String, String> consumer = consumer()) {
             consumer.subscribe(List.of(DispatchOrderEventMapper.TOPIC));
 
-            CompletableFuture<Void> first = CompletableFuture.runAsync(this::relayUntilEmpty);
-            CompletableFuture<Void> second = CompletableFuture.runAsync(this::relayUntilEmpty);
+            OutboxRelay relayA = new OutboxRelay(repository, kafkaTemplate, clock);
+            OutboxRelay relayB = new OutboxRelay(repository, kafkaTemplate, clock);
+            CompletableFuture<Void> first =
+                    CompletableFuture.runAsync(() -> relayUntilEmpty(relayA));
+            CompletableFuture<Void> second =
+                    CompletableFuture.runAsync(() -> relayUntilEmpty(relayB));
             CompletableFuture.allOf(first, second).get(60, TimeUnit.SECONDS);
 
             Map<String, List<String>> typesByOrder = new HashMap<>();
@@ -119,11 +126,11 @@ class OutboxLockingIT {
             await().atMost(Duration.ofSeconds(30))
                     .until(
                             () -> {
-                                consumer.poll(Duration.ofMillis(200)).forEach(records::add);
+                                poll(consumer, Duration.ofMillis(200), orders, records);
                                 return records.size() >= expected;
                             });
             // Drain a little longer so a duplicate would show up.
-            consumer.poll(Duration.ofSeconds(1)).forEach(records::add);
+            poll(consumer, Duration.ofSeconds(1), orders, records);
 
             for (ConsumerRecord<String, String> record : records) {
                 timesSeen.merge(header(record, "eventId"), 1, Integer::sum);
@@ -138,11 +145,29 @@ class OutboxLockingIT {
         }
     }
 
-    /** One relay instance: keeps polling until nothing is left to publish. */
-    private void relayUntilEmpty() {
+    /**
+     * One relay instance: keeps polling until nothing is left to publish. Each run gets its own
+     * transaction, as the {@code @Transactional} proxy of the real bean would give it.
+     */
+    private void relayUntilEmpty(OutboxRelay relay) {
         while (transactionTemplate.execute(status -> repository.countByPublishedAtIsNull() > 0)) {
-            relay.relayPending();
+            transactionTemplate.executeWithoutResult(status -> relay.relayPending());
         }
+    }
+
+    /** Keeps only the records of this test's orders. */
+    private static void poll(
+            KafkaConsumer<String, String> consumer,
+            Duration timeout,
+            List<UUID> orders,
+            List<ConsumerRecord<String, String>> into) {
+        consumer.poll(timeout)
+                .forEach(
+                        record -> {
+                            if (orders.contains(UUID.fromString(record.key()))) {
+                                into.add(record);
+                            }
+                        });
     }
 
     private OutboxEventJpaEntity save(UUID orderId, String eventType, Instant occurredAt) {
