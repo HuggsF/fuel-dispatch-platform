@@ -30,7 +30,8 @@ class OutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelay.class);
 
-    static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
+    /** Longer than the producer's delivery.timeout.ms, so the producer gives up first. */
+    static final Duration SEND_TIMEOUT = Duration.ofSeconds(6);
 
     private final SpringDataOutboxRepository repository;
     private final KafkaTemplate<String, String> kafkaTemplate;

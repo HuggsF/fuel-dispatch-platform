@@ -10,8 +10,7 @@ import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import org.hibernate.annotations.ColumnTransformer;
 import org.springframework.data.domain.Persistable;
 
 /**
@@ -31,8 +30,12 @@ public class OutboxEventJpaEntity implements Persistable<UUID> {
     @Column(name = "event_type", nullable = false, length = 50)
     private String eventType;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "payload", nullable = false)
+    /**
+     * Bound as plain text and cast in SQL: Hibernate's JSON type would send {@code jsonb}, which
+     * normalises the text before it lands in the {@code json} column (V4).
+     */
+    @ColumnTransformer(write = "?::json")
+    @Column(name = "payload", nullable = false, columnDefinition = "json")
     private String payload;
 
     @Column(name = "occurred_at", nullable = false)

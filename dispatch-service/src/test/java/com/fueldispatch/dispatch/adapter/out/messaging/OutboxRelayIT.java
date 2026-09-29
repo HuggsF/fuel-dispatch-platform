@@ -85,6 +85,8 @@ class OutboxRelayIT {
                     .containsOnly(records.getFirst().partition());
             for (ConsumerRecord<String, String> record : records) {
                 JsonNode payload = JSON.readTree(record.value());
+                // The wire value is the mapper's JSON as written, not re-serialized by the DB.
+                assertThat(record.value()).startsWith("{\"eventId\":").doesNotContain("\": ");
                 assertThat(EventContract.v1().violations(payload)).isEmpty();
                 assertThat(payload.get("orderId").asText()).isEqualTo(orderId);
                 assertThat(header(record, "eventId")).isEqualTo(payload.get("eventId").asText());

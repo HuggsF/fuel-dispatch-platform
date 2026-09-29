@@ -92,6 +92,19 @@ class OutboxLockingIT {
         assertThat(next).containsExactly(x2.getId(), y1.getId());
     }
 
+    // EVT-2.1
+    @Test
+    void lockNextBatch_moreThanOneHundredPending_returnsTheOldestHundredInOrder() {
+        List<UUID> oldestFirst = new ArrayList<>();
+        for (int i = 0; i < 101; i++) {
+            oldestFirst.add(save(UUID.randomUUID(), "OrderCreated", T0.plusSeconds(i)).getId());
+        }
+
+        List<UUID> batch = transactionTemplate.execute(status -> ids(repository.lockNextBatch()));
+
+        assertThat(batch).containsExactlyElementsOf(oldestFirst.subList(0, 100));
+    }
+
     // EVT-2.5, EVT-2.6
     @Test
     void twoRelaysInParallel_publishEveryEventOnceAndInOrderPerOrder() throws Exception {
@@ -155,7 +168,7 @@ class OutboxLockingIT {
         }
     }
 
-    /** Keeps only the records of this test's orders. */
+    /** Keeps only the records of this test's orders (other tests publish to the same topic). */
     private static void poll(
             KafkaConsumer<String, String> consumer,
             Duration timeout,
@@ -164,7 +177,8 @@ class OutboxLockingIT {
         consumer.poll(timeout)
                 .forEach(
                         record -> {
-                            if (orders.contains(UUID.fromString(record.key()))) {
+                            // The topic is shared with other tests; compare as text.
+                            if (orders.stream().anyMatch(o -> o.toString().equals(record.key()))) {
                                 into.add(record);
                             }
                         });

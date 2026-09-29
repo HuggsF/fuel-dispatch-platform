@@ -96,6 +96,23 @@ class OutboxRelayFailureTest {
         assertThat(second.getPublishedAt()).isNull();
     }
 
+    // EVT-2.4: the row left behind by a failure goes out on the next poll.
+    @Test
+    void relayPending_afterAFailedPoll_publishesTheRowOnTheNextPoll() {
+        OutboxEventJpaEntity row = row("OrderCreated");
+        when(repository.lockNextBatch()).thenReturn(List.of(row));
+        when(kafkaTemplate.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.failedFuture(new KafkaException("broker down")))
+                .thenReturn(acknowledged());
+
+        relay.relayPending();
+        assertThat(row.getPublishedAt()).isNull();
+
+        relay.relayPending();
+        assertThat(row.getPublishedAt()).isEqualTo(NOW);
+        verify(kafkaTemplate, times(2)).send(any(ProducerRecord.class));
+    }
+
     @Test
     void relayPending_nothingPending_sendsNothing() {
         when(repository.lockNextBatch()).thenReturn(List.of());

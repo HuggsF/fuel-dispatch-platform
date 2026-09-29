@@ -66,7 +66,11 @@ class OutboxTransactionIT {
                 .extracting(row -> row.get("event_type"))
                 .containsExactly("OrderCreated", "OrderApproved");
         for (Map<String, Object> row : rows) {
-            JsonNode payload = JSON.readTree((String) row.get("payload"));
+            String payloadText = (String) row.get("payload");
+            JsonNode payload = JSON.readTree(payloadText);
+            // Stored verbatim as the mapper wrote it (compact, envelope first), not normalised by
+            // the database the way jsonb would ({"data": ...} first, spaces after colons).
+            assertThat(payloadText).startsWith("{\"eventId\":").doesNotContain("\": ");
             assertThat(row.get("id")).isEqualTo(UUID.fromString(payload.get("eventId").asText()));
             assertThat(row.get("aggregate_id")).isEqualTo(order.id().value());
             assertThat(((Timestamp) row.get("occurred_at")).toInstant())
