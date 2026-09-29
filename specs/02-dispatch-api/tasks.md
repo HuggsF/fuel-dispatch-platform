@@ -31,7 +31,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     `CONCURRENT_MODIFICATION`, domain-rule violations and malformed JSON.
   - Code: remaining handlers in `ApiExceptionHandler`.
   - _Req: API-1.2, API-1.4, API-2.3, API-2.4_
-- [ ] **02.7** OpenAPI + end-to-end IT
+- [x] **02.7** OpenAPI + end-to-end IT
   - Test: `OpenApiIT`; `OrderApiIT` runs create → approve → dispatch → deliver against real Postgres.
   - Code: springdoc dependency, API metadata.
   - _Req: API-4.1_

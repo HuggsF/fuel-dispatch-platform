@@ -19,7 +19,7 @@ Driving adapter (REST) → driving ports (use cases) → application services �
 | `CreateOrderRequest`, `CancelOrderRequest`, `OrderResponse`, `PageResponse<T>` | `adapter.in.web.dto` | Records with Bean Validation |
 | `ApiExceptionHandler` | `adapter.in.web` | `@RestControllerAdvice` → ProblemDetail with `code` |
 | `DispatchOrderJpaEntity`, `SpringDataOrderRepository`, `JpaOrderRepositoryAdapter`, `OrderJpaMapper` | `adapter.out.persistence` | `@Version` column for optimistic locking |
-| `ClockConfig`, `UseCaseConfig` | `config` | Wiring |
+| `ClockConfig`, `UseCaseConfig`, `OpenApiConfig` | `config` | Wiring; API metadata (title, version, description) for springdoc (API-4.1) |
 
 ### Port signatures
 
