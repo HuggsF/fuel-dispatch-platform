@@ -36,6 +36,6 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - _Req: TRK-3.1, TRK-3.2, TRK-3.3, TRK-3.4_
 - [x] **04.7** Architecture guards: ArchUnit + BlockHound.
   - _Req: TRK-4.1, TRK-NF-1_
-- [ ] **04.8** ADR 0004 reactive read side; README demo: `curl -N localhost:8082/api/v1/tracking/stream`
+- [x] **04.8** ADR 0005 reactive read side (0004 is the outbox); README demo: `curl -N localhost:8082/api/v1/tracking/stream`
   while creating orders on 8081.
 - [ ] **04.9** Verify phase: `/spec-review 04`. **Milestone: publish the repository.**

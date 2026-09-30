@@ -41,7 +41,8 @@ with at-least-once delivery, in order per order ([ADR 0004](docs/adr/0004-transa
 
 - **dispatch-service** — command side: order lifecycle and business rules, hexagonal architecture,
   transactional outbox.
-- **tracking-service** — read side: idempotent Kafka consumer, reactive API and live status stream.
+- **tracking-service** — read side: idempotent Kafka consumer, reactive API and live status stream
+  over Server-Sent Events ([ADR 0005](docs/adr/0005-reactive-read-side.md)).
 
 ## What this project demonstrates
 
@@ -52,8 +53,9 @@ with at-least-once delivery, in order per order ([ADR 0004](docs/adr/0004-transa
 | REST APIs, OpenAPI, RFC 9457 errors | `dispatch-service/.../adapter/in/web` |
 | PostgreSQL, JPA, Flyway | `dispatch-service/.../adapter/out/persistence`, `db/migration` |
 | Kafka, outbox pattern, event contracts | `adapter/out/messaging`, `contracts/` |
-| Reactive programming (WebFlux, Reactor), MongoDB | `tracking-service/` |
-| Tests: JUnit 5, Mockito, Testcontainers, ArchUnit | `src/test` in each service |
+| Reactive programming (WebFlux, Reactor, SSE, backpressure), MongoDB | `tracking-service/` |
+| Idempotent consumer, optimistic locking, out-of-order events | `tracking-service/.../domain`, `adapter/in/messaging` |
+| Tests: JUnit 5, Mockito, Testcontainers, ArchUnit, StepVerifier, BlockHound | `src/test` in each service |
 | Resilience: retry, DLT, circuit breaker | phase 05 |
 | Observability: Prometheus, Grafana | `observability/` |
 | Docker, Kubernetes, CI/CD | `Dockerfile`s, `deploy/k8s/`, `.github/workflows/` |
@@ -129,6 +131,44 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-s
 Events are stored in the same transaction as the order, so they are not lost while Kafka is down:
 stop it with `docker compose stop kafka`, keep using the API, then `docker compose start kafka`
 and the pending events are published.
+
+### Watch orders live
+
+`tracking-service` consumes those events into MongoDB and pushes every applied change to open
+Server-Sent Event streams. In one terminal, open the stream (add `?orderId=$ID` for one order):
+
+```bash
+curl -N http://localhost:8082/api/v1/tracking/stream
+```
+
+In another, create and approve an order on 8081 as in [Try the dispatch API](#try-the-dispatch-api).
+About a second after each command the stream prints the change, and a `:heartbeat` comment every
+15 s keeps the connection open:
+
+```text
+id:807fcad5-cdc6-4587-af91-b3b2090ac0cb
+event:status-changed
+data:{"eventId":"807fcad5-...","orderId":"be5e7efa-...","status":"CREATED","occurredAt":"2026-09-30T16:28:13.430302Z","reason":null,"vesselName":"Nordic Star",...}
+
+id:69f48051-8416-498b-812d-dfe03d5af6f1
+event:status-changed
+data:{"eventId":"69f48051-...","orderId":"be5e7efa-...","status":"APPROVED",...}
+
+:heartbeat
+```
+
+Query the read side:
+
+```bash
+curl http://localhost:8082/api/v1/tracking/$ID          # current status, summary, history by occurredAt
+curl -H 'Accept: application/x-ndjson' \
+  'http://localhost:8082/api/v1/tracking?status=APPROVED' # streamed, one JSON per line (JSON array without the header)
+```
+
+Errors use the same RFC 9457 shape: `TRACKING_NOT_FOUND` (404), `VALIDATION_FAILED` (400, bad
+UUID or missing/unknown `status`), `INTERNAL_ERROR` (500). Replaying an event is harmless: each
+order remembers the event ids it applied, and an event older than the current status only goes
+into the history.
 
 | Component | Port |
 | --- | --- |

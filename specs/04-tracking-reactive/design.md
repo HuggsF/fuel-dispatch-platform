@@ -170,9 +170,9 @@ dispatch-service:
 
 | Decision | Alternatives | Why | ADR |
 | --- | --- | --- | --- |
-| Spring Kafka listener + `block()` on listener thread | reactor-kafka | reactor-kafka is no longer actively developed; offset handling with Spring Kafka is simpler and well known. Good interview talking point: where reactive does and does not pay off | 0004 |
-| In-memory `Sinks` for SSE | MongoDB change streams | Change streams need a replica set; Sinks is enough for one instance. Multi-instance fan-out noted as future work | 0004 |
-| MongoDB for the read side | PostgreSQL | Document per order matches the read pattern (status + nested history) | 0004 |
+| Spring Kafka listener + `block()` on listener thread | reactor-kafka | reactor-kafka is no longer actively developed; offset handling with Spring Kafka is simpler and well known. Good interview talking point: where reactive does and does not pay off | 0005 |
+| In-memory `Sinks` for SSE | MongoDB change streams | Change streams need a replica set; Sinks is enough for one instance. Multi-instance fan-out noted as future work | 0005 |
+| MongoDB for the read side | PostgreSQL | Document per order matches the read pattern (status + nested history) | 0005 |
 
 ## Testing strategy
 
