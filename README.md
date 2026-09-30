@@ -188,7 +188,7 @@ Local credentials are development defaults in `docker-compose.yml`; override the
 - [x] 01 Dispatch domain — `DispatchOrder` aggregate, value objects, domain events, ArchUnit guard ([ADR 0002](docs/adr/0002-hexagonal-architecture-and-domain-events.md))
 - [x] 02 Dispatch API — use cases, REST with RFC 9457 errors, PostgreSQL + Flyway, optimistic locking, OpenAPI
 - [x] 03 Dispatch events — transactional outbox, Kafka relay (ordered per order, safe with several instances), versioned JSON Schema contract ([ADR 0004](docs/adr/0004-transactional-outbox-and-at-least-once-delivery.md))
-- [ ] 04 Tracking service (reactive)
+- [x] 04 Tracking service (reactive) — idempotent Kafka consumer, MongoDB read model, WebFlux API and SSE live stream with backpressure, BlockHound-verified ([ADR 0005](docs/adr/0005-reactive-read-side.md))
 - [ ] 05 Resilience & observability
 - [ ] 06 CI/CD & Kubernetes
 - [ ] 07 Optional: AWS & Kotlin

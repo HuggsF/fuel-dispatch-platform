@@ -83,6 +83,11 @@ and offsets matter, and an in-memory Reactor sink for the live feed.**
   without pause, then skip) lost events after a few seconds of outage; `ConsumerFailureIT` showed
   it and now guards against it. With unbounded retries a partition waits for MongoDB, consumer lag
   grows, and processing resumes in order. Phase 05 should alert on that lag.
+- **A save slower than the listener timeout is not pushed live.** The listener waits at most
+  10 s for the use case. If MongoDB completes the save after that, the event is stored but never
+  notified. The redelivered event is a `DUPLICATE` and is not notified either. SSE clients miss
+  that one change, while `GET /tracking/{orderId}` stays correct. Accepted for now; closing the
+  gap would mean remembering per event whether it was notified.
 - **Poison messages.** An invalid payload (not JSON, a missing required field) is logged and
   skipped at once, so it cannot block its partition. Phase 05 sends it to a dead-letter topic
   instead. A payload that parses but always fails for another reason would be retried forever;
