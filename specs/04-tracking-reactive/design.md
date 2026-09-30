@@ -67,9 +67,18 @@ interface TrackingRepository {
   from the topic), `enable-auto-commit: false`, `ack-mode: manual_immediate`. The listener blocks
   on the use case (max 10 s) and calls `acknowledge()` only after it completes (TRK-1.4);
   duplicates are acknowledged too.
-- A payload that is not valid JSON or misses a required field fails with
-  `InvalidOrderEventException`; any failure is rethrown without ack. Until phase 05 adds the DLT,
-  Spring Kafka's default error handler retries it 9 times and then logs and skips it.
+- Any failure is rethrown without ack. What happens next is decided by the container's error
+  handler, a `DefaultErrorHandler` bean in `config.KafkaConsumerConfig` (TRK-1.4). Spring Kafka's
+  default would retry 10 times without pause and then skip the record **and commit its offset**,
+  so a MongoDB outage longer than ~100 s would lose events for good.
+  - **Transient failures** (MongoDB down or slow, timeouts, a second version conflict): retried
+    with exponential back-off (1 s doubling, capped at 30 s) and **no attempt limit**. The offset
+    does not move and the partition waits, which keeps per-order ordering; consumer lag grows until
+    MongoDB is back.
+  - **Invalid payloads** (`InvalidOrderEventException`: not JSON, a missing required field): not
+    retryable. Logged with the payload's partition and offset and skipped at once, so one bad
+    message cannot block its partition forever. Phase 05 sends these to a dead-letter topic
+    instead.
 - The topic is declared by dispatch-service; tracking-service only subscribes.
 - `SinkStatusChangeNotifier` was created in 04.4 in a basic form so that the use case bean could
   be wired; 04.6 completed it (see "Live stream").
@@ -183,7 +192,9 @@ dispatch-service:
 | TRK-2.x | `TrackingControllerTest` (`@WebFluxTest`, `WebTestClient`) | slice |
 | TRK-3.1–3.3 | `TrackingStreamControllerTest` (`@WebFluxTest`, `StepVerifier` on SSE, virtual time for the heartbeat) | slice |
 | TRK-3.1, 3.2 end to end | `LiveStreamIT` — Kafka event reaches an SSE client of that order | IT |
+| TRK-1.4 | `OrderEventListenerTest` — ack only after the use case completes, none on error | unit |
 | TRK-1.4, end to end | `OrderEventListenerIT` — Testcontainers Kafka + MongoDB; publish contract examples; duplicate ignored | IT |
+| TRK-1.4, failures | `ConsumerFailureIT` — MongoDB paused: offset not committed, event saved once MongoDB is back; an invalid payload is skipped and the next event of its partition applied | IT |
 | TRK-3.4 | `SinkStatusChangeNotifierTest` — slow subscriber does not block a fast one | unit |
 | TRK-4.1, TRK-4.2 | `HexagonalArchitectureTest` — dispatch-service's rules plus the Reactor allowance and "no `com.fueldispatch.dispatch..`"; each rule proven against `archfixture` violations | unit |
 | TRK-NF-1 | BlockHound in every test JVM of the module (`blockhound-junit-platform`), so real Netty event loops in the ITs are covered too; `BlockHoundInstalledTest` proves it is active | unit + IT |

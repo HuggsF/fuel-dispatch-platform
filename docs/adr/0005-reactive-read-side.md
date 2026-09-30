@@ -27,8 +27,10 @@ and offsets matter, and an in-memory Reactor sink for the live feed.**
    Events: `event: status-changed`, `id: <eventId>`, plus a `:heartbeat` comment every 15 s.
 2. **Spring Kafka `@KafkaListener` that blocks on the use case.** It runs on the listener thread
    (`block(10 s)`, never on Netty) and acknowledges manually (`manual_immediate`) only after the
-   document is saved. On a failure it rethrows without acking, so Kafka redelivers. Group
-   `tracking-service`, `auto-offset-reset: earliest`.
+   document is saved. On a failure it rethrows without acking. A `DefaultErrorHandler` then
+   retries transient failures with exponential back-off (1 s doubling, capped at 30 s) and **no
+   attempt limit**, so the offset never moves past an unsaved event. Invalid payloads are not
+   retryable and are logged and skipped. Group `tracking-service`, `auto-offset-reset: earliest`.
 3. **One MongoDB document per order.** `order_tracking` holds the current status, the order
    summary, the history embedded and sorted by `occurredAt`, and the last 50 processed event ids.
    The aggregate `OrderTracking` returns `APPLIED`, `DUPLICATE` or `OUT_OF_ORDER_RECORDED`.
@@ -73,8 +75,14 @@ and offsets matter, and an in-memory Reactor sink for the live feed.**
   microseconds. The SSE event shows the original `occurredAt` and the stored history the truncated
   one. Two events of the same order within one millisecond count as simultaneous, and the later
   one wins.
-- **Poison messages.** An invalid payload is retried 9 times by Spring Kafka's default error
-  handler and then logged and skipped. Phase 05 adds the dead-letter topic.
+- **MongoDB outages stall, they do not lose.** Spring Kafka's default handler (10 attempts
+  without pause, then skip) lost events after a few seconds of outage; `ConsumerFailureIT` showed
+  it and now guards against it. With unbounded retries a partition waits for MongoDB, consumer lag
+  grows, and processing resumes in order. Phase 05 should alert on that lag.
+- **Poison messages.** An invalid payload (not JSON, a missing required field) is logged and
+  skipped at once, so it cannot block its partition. Phase 05 sends it to a dead-letter topic
+  instead. A payload that parses but always fails for another reason would be retried forever;
+  the phase 05 DLT policy must decide when to give up on those.
 - **BlockHound allowances.** The only allowed blocking call is framework code (Actuator's lazy
   `SingletonSupplier` lock), listed with its reason in `TrackingBlockHoundIntegration`. Any new
   entry needs the same justification. `synchronized` in `publish` is outside BlockHound's view.
