@@ -7,9 +7,9 @@ Status: approved
 ```
 Kafka dispatch.orders.v1 ─▶ @KafkaListener (listener thread) ─▶ ApplyOrderEventUseCase (Mono)
                                                                   ├─▶ ReactiveMongo: order_tracking
-                                                                  └─▶ StatusChangeBroadcaster (Sinks.Many)
+                                                                  └─▶ StatusChangeNotifier (Sinks.Many)
 WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
-         GET /tracking/stream (SSE)                 ◀── StatusChangeBroadcaster
+         GET /tracking/stream (SSE)                 ◀── StatusChangeNotifier
 ```
 
 ## Components
@@ -24,9 +24,10 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 | `StatusChangeNotifier` | `application.port.out` | `void publish(OrderStatusChanged)` (never blocks, never fails the caller), `Flux<OrderStatusChanged> changes()`; the SSE payload is the applied `OrderStatusChanged` |
 | `TrackingApplicationService` | `application.service` | Loads or creates, applies, saves (skipped for DUPLICATE), then notifies only when APPLIED and only after the save; retries once on `ConcurrentTrackingUpdateException` from a fresh read; other errors are not retried. No transactions (one document write). Plain class, bean created in `config` like dispatch's `UseCaseConfig` |
 | `OrderEventListener` | `adapter.in.messaging` | Spring Kafka `@KafkaListener`; deserializes the v1 envelope; calls the use case and `block(Duration.ofSeconds(10))` — allowed because it runs on the Kafka listener thread, not on Netty; manual ack after save |
-| `TrackingController` | `adapter.in.web` | Annotated WebFlux controller |
+| `TrackingController` | `adapter.in.web` | Annotated WebFlux controller for the queries |
+| `TrackingStreamController`, `StatusChangeEvent` | `adapter.in.web` | SSE endpoint, kept apart from the queries; `StatusChangeEvent` is the event data (change + order summary) |
 | `MongoTrackingRepositoryAdapter`, `OrderTrackingDocument` | `adapter.out.persistence` | Collection `order_tracking`, `_id` = orderId, `@Version`; index on `currentStatus` |
-| `SinkStatusChangeNotifier` | `adapter.out.notification` | `Sinks.many().multicast().onBackpressureBuffer()`; per subscriber `onBackpressureLatest()` |
+| `SinkStatusChangeNotifier` | `adapter.out.notification` | `Sinks.many().multicast().directBestEffort()`; per subscriber `onBackpressureLatest()`; `publish` is `synchronized` (see "Live stream") |
 
 Idempotency: `processedEventIds` keeps the last 50 event ids per order (bounded); a duplicate
 returns `DUPLICATE`. Optimistic locking (`@Version`) + retry once handles concurrent writes.
@@ -70,10 +71,25 @@ interface TrackingRepository {
   `InvalidOrderEventException`; any failure is rethrown without ack. Until phase 05 adds the DLT,
   Spring Kafka's default error handler retries it 9 times and then logs and skips it.
 - The topic is declared by dispatch-service; tracking-service only subscribes.
-- `SinkStatusChangeNotifier` exists from 04.4 in a basic form (`multicast().directBestEffort()`,
-  `tryEmitNext`) so that the use case bean can be wired. Note for 04.6:
-  `multicast().onBackpressureBuffer()` would buffer changes while nobody is subscribed and replay
-  them to the first subscriber, which breaks "applied after the connection" (TRK-3.1).
+- `SinkStatusChangeNotifier` was created in 04.4 in a basic form so that the use case bean could
+  be wired; 04.6 completed it (see "Live stream").
+
+## Live stream
+
+- Sink: `Sinks.many().multicast().directBestEffort()`. Not `onBackpressureBuffer()`, which buffers
+  changes while nobody is subscribed and replays them to the first subscriber, breaking "applied
+  after the connection" (TRK-3.1). Best effort means one subscriber without demand never holds back
+  the others.
+- Per subscriber `onBackpressureLatest()` (TRK-3.4): it requests everything from the sink and, while
+  its client is slow, keeps only the latest change and drops the older ones.
+- `publish` is `synchronized`: a sink rejects concurrent emissions (`FAIL_NON_SERIALIZED`, measured:
+  ~20% lost with 4 threads) and saves complete on several threads. The lock only covers the hand-off
+  to per-subscriber buffers, never a client write.
+- SSE: `event: status-changed`, `id: <eventId>`, `data:` a `StatusChangeEvent`. The heartbeat is a
+  `:heartbeat` comment from `Flux.interval(15s)` merged into the stream; it is sent every 15 s
+  regardless of traffic, which covers "while idle" (TRK-3.3) without per-connection timers.
+- Errors are always written as `application/problem+json`, even when the request accepts only
+  `text/event-stream`; otherwise the ProblemDetail would be encoded as an SSE event.
 
 ## Persistence notes
 
@@ -150,7 +166,9 @@ dispatch-service:
 | --- | --- | --- |
 | TRK-1.1–1.3 | `OrderTrackingTest` | unit |
 | TRK-1.x | `TrackingApplicationServiceTest` with `StepVerifier` + Mockito | unit |
-| TRK-2.x, 3.x | `TrackingControllerTest` (`@WebFluxTest`, `WebTestClient`, `StepVerifier` on SSE) | slice |
+| TRK-2.x | `TrackingControllerTest` (`@WebFluxTest`, `WebTestClient`) | slice |
+| TRK-3.1–3.3 | `TrackingStreamControllerTest` (`@WebFluxTest`, `StepVerifier` on SSE, virtual time for the heartbeat) | slice |
+| TRK-3.1, 3.2 end to end | `LiveStreamIT` — Kafka event reaches an SSE client of that order | IT |
 | TRK-1.4, end to end | `OrderEventListenerIT` — Testcontainers Kafka + MongoDB; publish contract examples; duplicate ignored | IT |
 | TRK-3.4 | `SinkStatusChangeNotifierTest` — slow subscriber does not block a fast one | unit |
 | TRK-4.1 | `HexagonalArchitectureTest` | unit |

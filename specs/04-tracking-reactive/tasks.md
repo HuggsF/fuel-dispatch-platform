@@ -29,7 +29,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `TrackingControllerTest` — 200, 404 ProblemDetail, status filter streaming.
   - Code: `TrackingController`, error handler.
   - _Req: TRK-2.1, TRK-2.2, TRK-2.3_
-- [ ] **04.6** SSE live stream
+- [x] **04.6** SSE live stream
   - Test: SSE receives changes after subscribe; `orderId` filter; heartbeat (virtual time); slow
     subscriber test.
   - Code: `SinkStatusChangeNotifier`, stream endpoint.
