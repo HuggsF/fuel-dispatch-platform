@@ -21,7 +21,7 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 | `ApplyOrderEventUseCase`, `GetTrackingQuery`, `ListTrackingsQuery`, `StreamStatusChangesQuery` | `application.port.in` | `Mono<ApplyResult> apply(OrderStatusChanged)`, `Mono<OrderTracking> get(UUID)`, `Flux<OrderTracking> listByStatus(TrackingStatus)`, `Flux<OrderStatusChanged> streamChanges(Optional<UUID>)` |
 | `TrackingNotFoundException` | `application` | Error of `get` for an unknown order (TRK-2.2), like dispatch's `OrderNotFoundException` |
 | `TrackingRepository`, `VersionedTracking`, `ConcurrentTrackingUpdateException` | `application.port.out` | Reactive repository port; see "Optimistic locking" below |
-| `StatusChangeNotifier` | `application.port.out` | `void publish(OrderStatusChanged)` (never blocks, never fails the caller), `Flux<OrderStatusChanged> changes()`; the SSE payload is the applied `OrderStatusChanged` |
+| `StatusChangeNotifier` | `application.port.out` | `void publish(OrderStatusChanged)` (never fails the caller; may wait only for another publish's hand-off, never for a client), `Flux<OrderStatusChanged> changes()`; the SSE payload is the applied `OrderStatusChanged` |
 | `TrackingApplicationService` | `application.service` | Loads or creates, applies, saves (skipped for DUPLICATE), then notifies only when APPLIED and only after the save; retries once on `ConcurrentTrackingUpdateException` from a fresh read; other errors are not retried. No transactions (one document write). Plain class, bean created in `config` like dispatch's `UseCaseConfig` |
 | `OrderEventListener` | `adapter.in.messaging` | Spring Kafka `@KafkaListener`; deserializes the v1 envelope; calls the use case and `block(Duration.ofSeconds(10))` — allowed because it runs on the Kafka listener thread, not on Netty; manual ack after save |
 | `TrackingController` | `adapter.in.web` | Annotated WebFlux controller for the queries |
@@ -104,7 +104,8 @@ interface TrackingRepository {
   to per-subscriber buffers, never a client write.
 - SSE: `event: status-changed`, `id: <eventId>`, `data:` a `StatusChangeEvent`. The heartbeat is a
   `:heartbeat` comment from `Flux.interval(15s)` merged into the stream; it is sent every 15 s
-  regardless of traffic, which covers "while idle" (TRK-3.3) without per-connection timers.
+  regardless of traffic. That meets TRK-3.3, which requires heartbeats while idle but does not
+  forbid them on a busy stream, without a per-connection idle timer.
 - Errors are always written as `application/problem+json`, even when the request accepts only
   `text/event-stream`; otherwise the ProblemDetail would be encoded as an SSE event.
 
@@ -163,7 +164,7 @@ No version field in the domain: optimistic locking stays in the persistence adap
 | Method | Path | Produces | Notes |
 | --- | --- | --- | --- |
 | GET | `/api/v1/tracking/{orderId}` | JSON | 404 `TRACKING_NOT_FOUND` |
-| GET | `/api/v1/tracking?status=APPROVED` | `application/x-ndjson` or JSON array | `Flux` |
+| GET | `/api/v1/tracking?status=APPROVED` | `application/x-ndjson` or JSON array | `Flux`; `status` is required (no unfiltered listing) |
 | GET | `/api/v1/tracking/stream?orderId=` | `text/event-stream` | SSE `event: status-changed`; heartbeat via `Flux.interval(15s)` merged as comment |
 
 Response bodies (`adapter.in.web.dto`):
@@ -171,7 +172,7 @@ Response bodies (`adapter.in.web.dto`):
 - `TrackingResponse`: `orderId, currentStatus, lastOccurredAt, vesselName, vesselImo, berth,
   fuelType, quantityM3, history[] {eventId, status, occurredAt, reason}`, with history sorted by
   `occurredAt`. `processedEventIds` is internal and never exposed.
-- `TrackingSummaryResponse`: the same fields without `history`. `status` is required.
+- `TrackingSummaryResponse`: the same fields without `history`.
 
 Errors (`ApiExceptionHandler`, WebFlux `ResponseEntityExceptionHandler`), same shape as
 dispatch-service:
