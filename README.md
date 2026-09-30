@@ -10,10 +10,34 @@ two Java 21 / Spring Boot microservices that communicate only through Kafka.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    operator([Terminal operator]) -- REST --> api
+
+    subgraph dispatch["dispatch-service · Spring MVC"]
+        api[OrderController] --> useCase[OrderApplicationService]
+        relay[OutboxRelay<br/>every 1 s]
+    end
+
+    subgraph postgres["PostgreSQL"]
+        orders[(dispatch_order)]
+        outbox[(outbox_event)]
+    end
+
+    useCase -- "one transaction:<br/>save order + its events" --> orders
+    useCase --> outbox
+    relay -- "lock oldest unpublished<br/>FOR UPDATE SKIP LOCKED" --> outbox
+    relay -- "key = orderId<br/>acks=all" --> topic[[Kafka · dispatch.orders.v1]]
+    relay -. "mark published_at<br/>after the ack" .-> outbox
+
+    topic --> tracking["tracking-service · WebFlux<br/>idempotent consumer"]
+    tracking --> mongo[(MongoDB)]
+    tracking -- SSE --> panel([Status panel])
 ```
-Operator ──REST──▶ dispatch-service ──(outbox)──▶ Kafka: dispatch.orders.v1 ──▶ tracking-service ──SSE──▶ Status panel
-                   Spring MVC · PostgreSQL                                       WebFlux · MongoDB
-```
+
+The two services never call each other: the only integration is the versioned event contract in
+[`contracts/`](contracts/). Events are stored in the same transaction as the order and relayed
+with at-least-once delivery, in order per order ([ADR 0004](docs/adr/0004-transactional-outbox-and-at-least-once-delivery.md)).
 
 - **dispatch-service** — command side: order lifecycle and business rules, hexagonal architecture,
   transactional outbox.
@@ -43,7 +67,7 @@ Prerequisites: JDK 21 and Docker (with Compose v2). Maven is not needed — use 
 ./mvnw verify                                  # build + unit/integration tests + format check (Windows: mvnw.cmd verify)
 ./mvnw spotless:apply                          # fix formatting before committing
 
-docker compose up -d                           # PostgreSQL, MongoDB, Kafka
+docker compose up -d                           # PostgreSQL, MongoDB, Kafka, Kafka UI
 docker compose ps                              # every service should be "healthy"
 
 docker compose --profile apps up -d --build    # infrastructure + both services
@@ -91,6 +115,21 @@ Codes: `VALIDATION_FAILED` (400, with an `errors` list of `field`/`message`), `M
 (400), `ORDER_NOT_FOUND` (404), `INVALID_TRANSITION` (409), `CONCURRENT_MODIFICATION` (409),
 `INTERNAL_ERROR` (500).
 
+### See the events
+
+Every state change is published to Kafka topic `dispatch.orders.v1` about a second after the
+command, keyed by order id, following [`contracts/dispatch-order-event.v1.schema.json`](contracts/dispatch-order-event.v1.schema.json).
+Open Kafka UI at <http://localhost:8090> → Topics → `dispatch.orders.v1` → Messages, or read the
+topic from the command line:
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:19092   --topic dispatch.orders.v1 --from-beginning --property print.key=true --property print.headers=true
+```
+
+Events are stored in the same transaction as the order, so they are not lost while Kafka is down:
+stop it with `docker compose stop kafka`, keep using the API, then `docker compose start kafka`
+and the pending events are published.
+
 | Component | Port |
 | --- | --- |
 | dispatch-service | 8081 |
@@ -98,6 +137,7 @@ Codes: `VALIDATION_FAILED` (400, with an `errors` list of `field`/`message`), `M
 | PostgreSQL 16 | 5432 |
 | MongoDB 7 | 27017 |
 | Kafka (KRaft) | 9092 (from the host) · `kafka:19092` (inside the compose network) |
+| Kafka UI | 8090 — browse topics and messages at <http://localhost:8090> |
 
 Local credentials are development defaults in `docker-compose.yml`; override them by copying
 `.env.example` to `.env`.
@@ -107,7 +147,7 @@ Local credentials are development defaults in `docker-compose.yml`; override the
 - [x] 00 Foundation — Maven multi-module build, Docker Compose, CI, project board
 - [x] 01 Dispatch domain — `DispatchOrder` aggregate, value objects, domain events, ArchUnit guard ([ADR 0002](docs/adr/0002-hexagonal-architecture-and-domain-events.md))
 - [x] 02 Dispatch API — use cases, REST with RFC 9457 errors, PostgreSQL + Flyway, optimistic locking, OpenAPI
-- [ ] 03 Dispatch events (Kafka + outbox)
+- [x] 03 Dispatch events — transactional outbox, Kafka relay (ordered per order, safe with several instances), versioned JSON Schema contract ([ADR 0004](docs/adr/0004-transactional-outbox-and-at-least-once-delivery.md))
 - [ ] 04 Tracking service (reactive)
 - [ ] 05 Resilience & observability
 - [ ] 06 CI/CD & Kubernetes

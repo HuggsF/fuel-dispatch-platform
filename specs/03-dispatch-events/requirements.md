@@ -34,6 +34,9 @@ no status update is ever lost. (BR-6)
   next poll (at-least-once delivery).
 - **EVT-2.5** WHERE several instances run THE SYSTEM SHALL not publish the same row concurrently
   (`FOR UPDATE SKIP LOCKED`).
+- **EVT-2.6** WHERE several instances run THE SYSTEM SHALL still publish the events of one order
+  in the order they occurred: a row is picked only when no older unpublished row of the same
+  order exists.
 
 ### EVT-3 Event contract
 

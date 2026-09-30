@@ -50,7 +50,7 @@ delivery, so that everyone knows where it stands.
 - **DOM-3.1** THE SYSTEM SHALL expose registered events through `pullDomainEvents()`, which returns
   them in order and clears the internal list.
 - **DOM-3.2** Each event SHALL carry: `eventId` (UUID), `orderId`, `occurredAt`, and the order data
-  needed by consumers (status, and reason for cancellations).
+  needed by consumers: status, vessel, berth, fuel type, quantity, and reason for cancellations.
 
 ### DOM-4 Architecture guard
 

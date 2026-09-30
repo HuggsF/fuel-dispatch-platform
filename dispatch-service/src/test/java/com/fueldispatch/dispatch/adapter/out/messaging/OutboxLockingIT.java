@@ -1,0 +1,229 @@
+package com.fueldispatch.dispatch.adapter.out.messaging;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+import com.fueldispatch.dispatch.TestcontainersConfiguration;
+import com.fueldispatch.dispatch.adapter.out.messaging.outbox.OutboxEventJpaEntity;
+import com.fueldispatch.dispatch.adapter.out.messaging.outbox.SpringDataOutboxRepository;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.kafka.KafkaConnectionDetails;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/**
+ * Several relays at once never publish a row twice (EVT-2.5) and never reorder the events of one
+ * order (EVT-2.6), on real PostgreSQL and Kafka. The scheduled relay is off, so nothing but the
+ * test's own relays touches the outbox.
+ */
+@SpringBootTest(properties = "outbox.relay.enabled=false")
+@Import(TestcontainersConfiguration.class)
+class OutboxLockingIT {
+
+    private static final Instant T0 = Instant.parse("2026-10-05T14:00:00Z");
+    private static final String[] LIFECYCLE = {"OrderCreated", "OrderApproved", "OrderDispatched"};
+
+    @Autowired private SpringDataOutboxRepository repository;
+    @Autowired private TransactionTemplate transactionTemplate;
+    @Autowired private KafkaTemplate<String, String> kafkaTemplate;
+    @Autowired private Clock clock;
+    @Autowired private KafkaConnectionDetails kafka;
+
+    @BeforeEach
+    void emptyOutbox() {
+        repository.deleteAll();
+    }
+
+    // EVT-2.5, EVT-2.6
+    @Test
+    void lockNextBatch_whileAnotherRelayHoldsItsBatch_getsNeitherItsRowsNorTheirSuccessors()
+            throws Exception {
+        UUID orderX = UUID.randomUUID();
+        UUID orderY = UUID.randomUUID();
+        OutboxEventJpaEntity x1 = save(orderX, "OrderCreated", T0);
+        OutboxEventJpaEntity x2 = save(orderX, "OrderApproved", T0.plusSeconds(1));
+        OutboxEventJpaEntity y1 = save(orderY, "OrderCreated", T0.plusSeconds(2));
+
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CompletableFuture<List<UUID>> relayA =
+                CompletableFuture.supplyAsync(
+                        () ->
+                                transactionTemplate.execute(
+                                        status -> {
+                                            List<UUID> batch = ids(repository.lockNextBatch());
+                                            locked.countDown();
+                                            awaitLatch(release);
+                                            return batch;
+                                        }));
+        assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+
+        List<UUID> relayB = transactionTemplate.execute(status -> ids(repository.lockNextBatch()));
+        release.countDown();
+
+        // A takes the head of each order; x2 waits behind x1 even though it is not locked.
+        assertThat(relayA.get(10, TimeUnit.SECONDS)).containsExactly(x1.getId(), y1.getId());
+        assertThat(relayB).isEmpty();
+
+        transactionTemplate.executeWithoutResult(
+                status ->
+                        repository.findById(x1.getId()).orElseThrow().markPublished(Instant.now()));
+        List<UUID> next = transactionTemplate.execute(status -> ids(repository.lockNextBatch()));
+        assertThat(next).containsExactly(x2.getId(), y1.getId());
+    }
+
+    // EVT-2.1
+    @Test
+    void lockNextBatch_moreThanOneHundredPending_returnsTheOldestHundredInOrder() {
+        List<UUID> oldestFirst = new ArrayList<>();
+        for (int i = 0; i < 101; i++) {
+            oldestFirst.add(save(UUID.randomUUID(), "OrderCreated", T0.plusSeconds(i)).getId());
+        }
+
+        List<UUID> batch = transactionTemplate.execute(status -> ids(repository.lockNextBatch()));
+
+        assertThat(batch).containsExactlyElementsOf(oldestFirst.subList(0, 100));
+    }
+
+    // EVT-2.5, EVT-2.6
+    @Test
+    void twoRelaysInParallel_publishEveryEventOnceAndInOrderPerOrder() throws Exception {
+        List<UUID> orders = new ArrayList<>();
+        Instant at = T0;
+        for (int order = 0; order < 40; order++) {
+            orders.add(UUID.randomUUID());
+        }
+        // Interleave orders so each relay batch mixes them.
+        for (String eventType : LIFECYCLE) {
+            for (UUID order : orders) {
+                save(order, eventType, at);
+                at = at.plusMillis(1);
+            }
+        }
+        int expected = orders.size() * LIFECYCLE.length;
+
+        try (KafkaConsumer<String, String> consumer = consumer()) {
+            consumer.subscribe(List.of(DispatchOrderEventMapper.TOPIC));
+
+            OutboxRelay relayA = new OutboxRelay(repository, kafkaTemplate, clock);
+            OutboxRelay relayB = new OutboxRelay(repository, kafkaTemplate, clock);
+            CompletableFuture<Void> first =
+                    CompletableFuture.runAsync(() -> relayUntilEmpty(relayA));
+            CompletableFuture<Void> second =
+                    CompletableFuture.runAsync(() -> relayUntilEmpty(relayB));
+            CompletableFuture.allOf(first, second).get(60, TimeUnit.SECONDS);
+
+            Map<String, List<String>> typesByOrder = new HashMap<>();
+            Map<String, Integer> timesSeen = new HashMap<>();
+            List<ConsumerRecord<String, String>> records = new ArrayList<>();
+            await().atMost(Duration.ofSeconds(30))
+                    .until(
+                            () -> {
+                                poll(consumer, Duration.ofMillis(200), orders, records);
+                                return records.size() >= expected;
+                            });
+            // Drain a little longer so a duplicate would show up.
+            poll(consumer, Duration.ofSeconds(1), orders, records);
+
+            for (ConsumerRecord<String, String> record : records) {
+                timesSeen.merge(header(record, "eventId"), 1, Integer::sum);
+                typesByOrder
+                        .computeIfAbsent(record.key(), k -> new ArrayList<>())
+                        .add(header(record, "eventType"));
+            }
+            assertThat(timesSeen).hasSize(expected).allSatisfy((id, n) -> assertThat(n).isOne());
+            assertThat(typesByOrder).hasSize(orders.size());
+            assertThat(typesByOrder.values())
+                    .allSatisfy(t -> assertThat(t).containsExactly(LIFECYCLE));
+        }
+    }
+
+    /**
+     * One relay instance: keeps polling until nothing is left to publish. Each run gets its own
+     * transaction, as the {@code @Transactional} proxy of the real bean would give it.
+     */
+    private void relayUntilEmpty(OutboxRelay relay) {
+        while (transactionTemplate.execute(status -> repository.countByPublishedAtIsNull() > 0)) {
+            transactionTemplate.executeWithoutResult(status -> relay.relayPending());
+        }
+    }
+
+    /** Keeps only the records of this test's orders (other tests publish to the same topic). */
+    private static void poll(
+            KafkaConsumer<String, String> consumer,
+            Duration timeout,
+            List<UUID> orders,
+            List<ConsumerRecord<String, String>> into) {
+        consumer.poll(timeout)
+                .forEach(
+                        record -> {
+                            // The topic is shared with other tests; compare as text.
+                            if (orders.stream().anyMatch(o -> o.toString().equals(record.key()))) {
+                                into.add(record);
+                            }
+                        });
+    }
+
+    private OutboxEventJpaEntity save(UUID orderId, String eventType, Instant occurredAt) {
+        UUID eventId = UUID.randomUUID();
+        return repository.save(
+                new OutboxEventJpaEntity(
+                        eventId,
+                        orderId,
+                        eventType,
+                        "{\"eventId\":\"" + eventId + "\",\"eventType\":\"" + eventType + "\"}",
+                        occurredAt));
+    }
+
+    private static List<UUID> ids(List<OutboxEventJpaEntity> rows) {
+        return rows.stream().map(OutboxEventJpaEntity::getId).toList();
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            latch.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private KafkaConsumer<String, String> consumer() {
+        return new KafkaConsumer<>(
+                Map.of(
+                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                        String.join(",", kafka.getConsumerBootstrapServers()),
+                        ConsumerConfig.GROUP_ID_CONFIG,
+                        "outbox-locking-it-" + UUID.randomUUID(),
+                        ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+                        "earliest",
+                        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+                        StringDeserializer.class,
+                        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                        StringDeserializer.class));
+    }
+
+    private static String header(ConsumerRecord<String, String> record, String name) {
+        return new String(record.headers().lastHeader(name).value(), StandardCharsets.UTF_8);
+    }
+}

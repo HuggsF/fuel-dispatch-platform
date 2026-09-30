@@ -1,6 +1,6 @@
 # Local infrastructure for fuel-dispatch-platform (FND-2.1, FND-2.2, FND-2.4).
 #
-#   docker compose up -d        # start PostgreSQL, MongoDB and Kafka
+#   docker compose up -d        # start PostgreSQL, MongoDB, Kafka and Kafka UI
 #   docker compose ps           # every service should report "healthy"
 #   docker compose --profile apps up -d --build   # also build and run both services
 #
@@ -69,6 +69,18 @@ services:
       retries: 10
       start_period: 15s
 
+  # Web UI to browse topics and messages: http://localhost:8090
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.5.0
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+    ports:
+      - "8090:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   # Application services, only with: docker compose --profile apps up -d --build (FND-2.3)
   dispatch-service:
     profiles: [apps]
@@ -80,8 +92,11 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dispatch}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-dispatch}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-dispatch}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     ports:
       - "8081:8081"

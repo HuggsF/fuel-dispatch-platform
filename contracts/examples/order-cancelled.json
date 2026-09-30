@@ -1,0 +1,16 @@
+{
+  "eventId": "5e2a8c47-9b1f-4d3a-a6e8-4c7b2d9f1e05",
+  "eventType": "OrderCancelled",
+  "eventVersion": 1,
+  "occurredAt": "2026-10-05T14:10:31Z",
+  "orderId": "6a3d9f82-1c5e-4b7a-8e24-9f6b3c1d7a20",
+  "data": {
+    "status": "CANCELLED",
+    "vesselName": "MV Atlantic Star",
+    "vesselImo": "9321483",
+    "berth": "B-03",
+    "fuelType": "VLSFO",
+    "quantityM3": 850.125,
+    "reason": "Vessel departed the berth before the delivery window."
+  }
+}
