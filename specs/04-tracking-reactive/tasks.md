@@ -6,13 +6,16 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
   - Test: `OrderTrackingTest` — apply new, duplicate, out-of-order events; bounded processed ids.
   - Code: `OrderTracking`, `OrderStatusChanged`, `HistoryEntry`, `ApplyResult`.
   - _Req: TRK-1.1, TRK-1.2, TRK-1.3_
-- [ ] **04.2** Reactive Mongo adapter
-  - Test: `MongoTrackingRepositoryIT` (Testcontainers MongoDB) — save/find/findByStatus with `StepVerifier`.
-  - Code: document, mapper, adapter, index creation.
+- [x] **04.2** Reactive Mongo adapter
+  - Test: `MongoTrackingRepositoryIT` (Testcontainers MongoDB) — save/find/findByStatus with `StepVerifier`;
+    stale version and duplicate insert fail with `ConcurrentTrackingUpdateException`.
+  - Code: `TrackingRepository` port + `VersionedTracking` + `ConcurrentTrackingUpdateException`
+    (the adapter implements the port, so it moves here from 04.3), document, mapper, adapter,
+    index creation.
   - _Req: TRK-1.1, TRK-2.1, TRK-2.3_
 - [ ] **04.3** Application service
   - Test: `TrackingApplicationServiceTest` — notifies only on APPLIED; retries once on version conflict.
-  - Code: ports + service.
+  - Code: remaining ports (`port.in`, `StatusChangeNotifier`) + service.
   - _Req: TRK-1.1, TRK-1.2, TRK-1.3_
 - [ ] **04.4** Kafka listener
   - Test: `OrderEventListenerIT` — contract examples from `contracts/examples` produce tracking docs;

@@ -4,11 +4,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
-/** Smoke test for FND-1.5: the service starts and reports itself healthy. */
+/**
+ * Smoke test for FND-1.5: the service starts and reports itself healthy. An integration test since
+ * phase 04, because the context needs MongoDB.
+ */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
-class TrackingServiceApplicationTest {
+@Import(TestcontainersConfiguration.class)
+class TrackingServiceApplicationIT {
 
     @Autowired private WebTestClient webTestClient;
 

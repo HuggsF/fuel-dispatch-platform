@@ -19,7 +19,8 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 | `OrderTracking` | `domain` | Aggregate: `orderId`, summary, `currentStatus`, `lastOccurredAt`, `history`, `processedEventIds`; method `apply(OrderStatusChanged)` returns `ApplyResult` (APPLIED / DUPLICATE / OUT_OF_ORDER_RECORDED) |
 | `OrderStatusChanged`, `TrackingStatus`, `HistoryEntry` | `domain` | Own model; not shared with dispatch-service (TRK-4.2) |
 | `ApplyOrderEventUseCase`, `GetTrackingQuery`, `StreamStatusChangesQuery` | `application.port.in` | Return `Mono` / `Flux` |
-| `TrackingRepository`, `StatusChangeNotifier` | `application.port.out` | Reactive signatures |
+| `TrackingRepository`, `VersionedTracking`, `ConcurrentTrackingUpdateException` | `application.port.out` | Reactive repository port; see "Optimistic locking" below |
+| `StatusChangeNotifier` | `application.port.out` | Reactive signature |
 | `TrackingApplicationService` | `application.service` | Loads or creates, applies, saves, notifies when APPLIED |
 | `OrderEventListener` | `adapter.in.messaging` | Spring Kafka `@KafkaListener`; deserializes the v1 envelope; calls the use case and `block(Duration.ofSeconds(10))` — allowed because it runs on the Kafka listener thread, not on Netty; manual ack after save |
 | `TrackingController` | `adapter.in.web` | Annotated WebFlux controller |
@@ -28,6 +29,42 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 
 Idempotency: `processedEventIds` keeps the last 50 event ids per order (bounded); a duplicate
 returns `DUPLICATE`. Optimistic locking (`@Version`) + retry once handles concurrent writes.
+
+## Optimistic locking
+
+Reactive MongoDB has no transaction-scoped managed entity, so the ADR 0003 approach (the adapter
+reloads the row it already holds) would read the *current* version and never see a conflict. The
+version read by `findById` must travel to `save`. It travels next to the aggregate, not inside
+it, so the domain stays free of persistence concerns as in ADR 0003:
+
+```java
+// application.port.out
+record VersionedTracking(OrderTracking tracking, Long version) {}  // version null = never saved
+
+interface TrackingRepository {
+    Mono<VersionedTracking> findById(UUID orderId);            // empty when unknown
+    Flux<OrderTracking> findByStatus(TrackingStatus status);    // read side, no version needed
+    Mono<VersionedTracking> save(VersionedTracking tracking);   // returns the new version
+}
+```
+
+- `save` with `version == null` inserts; with a version it updates only if the stored version
+  still matches (`@Version` on `OrderTrackingDocument`).
+- A stale version, or an insert racing another insert of the same order, errors with
+  `ConcurrentTrackingUpdateException` (application.port.out). The adapter translates Spring's
+  `OptimisticLockingFailureException` / `DuplicateKeyException` so that `application` never sees
+  Spring Data types (structure.md). The service retries once on it (04.3).
+- The version is opaque to the application: it only passes it back.
+
+## Persistence notes
+
+- `order_tracking` document: `_id` and event ids stored as UUID strings (readable in any client),
+  `summary` and `history` embedded, `quantityM3` as `Decimal128` (exact), `currentStatus` indexed
+  (`@Indexed` + `spring.data.mongodb.auto-index-creation: true`).
+- Instants are stored as native MongoDB dates, which have **millisecond** precision; the contract
+  allows microseconds. Two events of one order within the same millisecond therefore compare as
+  "same instant" after a reload, and the tie rule (applied) decides. Accepted: events of one order
+  are seconds apart in practice, and native dates keep the collection queryable by time.
 
 ## Domain model
 

@@ -107,6 +107,11 @@ services:
       context: .
       dockerfile: tracking-service/Dockerfile
     image: fuel-dispatch/tracking-service:local
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_USERNAME:-tracking}:${MONGO_PASSWORD:-tracking}@mongo:27017/tracking?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
     ports:
       - "8082:8082"
 

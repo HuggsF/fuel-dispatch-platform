@@ -1,6 +1,12 @@
 spring:
   application:
     name: tracking-service
+  data:
+    mongodb:
+      # Local default matches docker-compose.yml; override with SPRING_DATA_MONGODB_URI.
+      uri: mongodb://tracking:tracking@localhost:27017/tracking?authSource=admin
+      # Creates the indexes declared on the documents (@Indexed) at startup.
+      auto-index-creation: true
 
 server:
   port: 8082
