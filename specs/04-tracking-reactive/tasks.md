@@ -2,7 +2,7 @@
 
 Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is green.
 
-- [ ] **04.1** Tracking domain
+- [x] **04.1** Tracking domain
   - Test: `OrderTrackingTest` — apply new, duplicate, out-of-order events; bounded processed ids.
   - Code: `OrderTracking`, `OrderStatusChanged`, `HistoryEntry`, `ApplyResult`.
   - _Req: TRK-1.1, TRK-1.2, TRK-1.3_

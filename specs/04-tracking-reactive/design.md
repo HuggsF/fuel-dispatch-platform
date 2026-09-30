@@ -29,6 +29,32 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 Idempotency: `processedEventIds` keeps the last 50 event ids per order (bounded); a duplicate
 returns `DUPLICATE`. Optimistic locking (`@Version`) + retry once handles concurrent writes.
 
+## Domain model
+
+All types in `com.fueldispatch.tracking.domain`, derived from the v1 contract
+(`contracts/dispatch-order-event.v1.schema.json`), owned by tracking-service (TRK-4.2).
+
+| Type | Shape |
+| --- | --- |
+| `TrackingStatus` | enum `CREATED, APPROVED, DISPATCHED, DELIVERED, CANCELLED` (= `data.status`) |
+| `OrderSummary` | record `vesselName, vesselImo, berth, fuelType (String), quantityM3 (BigDecimal)` — plain values, the read side trusts the producer-validated contract |
+| `OrderStatusChanged` | record `eventId, orderId (UUID), occurredAt, status, summary, reason` — all but `reason` required (`DomainValidationException`); `reason` only on `CANCELLED` |
+| `HistoryEntry` | record `eventId, status, occurredAt, reason` |
+| `ApplyResult` | enum `APPLIED, DUPLICATE, OUT_OF_ORDER_RECORDED` |
+| `OrderTracking` | `forOrder(orderId)` (no events yet: status/summary/lastOccurredAt `null`), `rehydrate(...)`, `apply(event)` |
+
+`OrderTracking.apply` rules, in order:
+
+1. Event of another order → `DomainValidationException`.
+2. `eventId` in `processedEventIds` → `DUPLICATE`, nothing changes (TRK-1.2).
+3. Otherwise remember the id (FIFO, max 50) and insert a `HistoryEntry` keeping history sorted by
+   `occurredAt` (stable for equal instants).
+4. `occurredAt` strictly before `lastOccurredAt` → `OUT_OF_ORDER_RECORDED`; status, summary and
+   `lastOccurredAt` unchanged (TRK-1.3). An equal instant is not "older" and is applied.
+5. Else → `APPLIED`: status, summary and `lastOccurredAt` take the event values (TRK-1.1).
+
+No version field in the domain: optimistic locking stays in the persistence adapter (ADR 0003).
+
 ## Endpoints
 
 | Method | Path | Produces | Notes |
