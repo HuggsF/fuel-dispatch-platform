@@ -25,7 +25,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     `UseCaseConfig`; a basic `SinkStatusChangeNotifier` (publish/subscribe only) because the use case
     bean needs a notifier — backpressure and slow-subscriber behaviour stay in 04.6.
   - _Req: TRK-1.1, TRK-1.2, TRK-1.4, TRK-4.2_
-- [ ] **04.5** Query endpoints
+- [x] **04.5** Query endpoints
   - Test: `TrackingControllerTest` — 200, 404 ProblemDetail, status filter streaming.
   - Code: `TrackingController`, error handler.
   - _Req: TRK-2.1, TRK-2.2, TRK-2.3_

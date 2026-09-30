@@ -119,6 +119,23 @@ No version field in the domain: optimistic locking stays in the persistence adap
 | GET | `/api/v1/tracking?status=APPROVED` | `application/x-ndjson` or JSON array | `Flux` |
 | GET | `/api/v1/tracking/stream?orderId=` | `text/event-stream` | SSE `event: status-changed`; heartbeat via `Flux.interval(15s)` merged as comment |
 
+Response bodies (`adapter.in.web.dto`):
+
+- `TrackingResponse`: `orderId, currentStatus, lastOccurredAt, vesselName, vesselImo, berth,
+  fuelType, quantityM3, history[] {eventId, status, occurredAt, reason}`, with history sorted by
+  `occurredAt`. `processedEventIds` is internal and never exposed.
+- `TrackingSummaryResponse`: the same fields without `history`. `status` is required.
+
+Errors (`ApiExceptionHandler`, WebFlux `ResponseEntityExceptionHandler`), same shape as
+dispatch-service:
+
+| Case | Status | `code` |
+| --- | --- | --- |
+| No tracking for the order (TRK-2.2) | 404 | `TRACKING_NOT_FOUND` |
+| Bad UUID, unknown or missing `status` | 400 | `VALIDATION_FAILED` + `errors[] {field, message}` |
+| Other WebFlux errors (unknown route, 405, 406…) | as is | HTTP status name |
+| Anything else (logged, cause not exposed) | 500 | `INTERNAL_ERROR` |
+
 ## Key decisions
 
 | Decision | Alternatives | Why | ADR |
