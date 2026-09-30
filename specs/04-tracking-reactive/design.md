@@ -90,7 +90,15 @@ interface TrackingRepository {
   after the connection" (TRK-3.1). Best effort means one subscriber without demand never holds back
   the others.
 - Per subscriber `onBackpressureLatest()` (TRK-3.4): it requests everything from the sink and, while
-  its client is slow, keeps only the latest change and drops the older ones.
+  its client is slow, holds only the latest change and drops the older ones.
+- The controller merges changes and heartbeats with **prefetch 1** (`Flux.merge(1, …)`), so the
+  merge itself queues at most one change per client. A client that stops reading therefore gets
+  the change already in flight and then the latest one; everything in between is dropped. What
+  Reactor Netty and the socket buffer accepted before the client stopped reading is outside this
+  bound.
+- Heartbeats are `Flux.interval(15s).onBackpressureDrop()`: `Flux.interval` fails when it cannot
+  emit, which would end the stream of a client that stopped reading for ~8 minutes. A dropped
+  heartbeat is harmless.
 - `publish` is `synchronized`: a sink rejects concurrent emissions (`FAIL_NON_SERIALIZED`, measured:
   ~20% lost with 4 threads) and saves complete on several threads. The lock only covers the hand-off
   to per-subscriber buffers, never a client write.
@@ -196,5 +204,6 @@ dispatch-service:
 | TRK-1.4, end to end | `OrderEventListenerIT` — Testcontainers Kafka + MongoDB; publish contract examples; duplicate ignored | IT |
 | TRK-1.4, failures | `ConsumerFailureIT` — MongoDB paused: offset not committed, event saved once MongoDB is back; an invalid payload is skipped and the next event of its partition applied | IT |
 | TRK-3.4 | `SinkStatusChangeNotifierTest` — slow subscriber does not block a fast one | unit |
+| TRK-3.3, 3.4 | `TrackingStreamControllerTest` — slow client gets the in-flight and the latest change only; no heartbeat overflow without demand | unit |
 | TRK-4.1, TRK-4.2 | `HexagonalArchitectureTest` — dispatch-service's rules plus the Reactor allowance and "no `com.fueldispatch.dispatch..`"; each rule proven against `archfixture` violations | unit |
 | TRK-NF-1 | BlockHound in every test JVM of the module (`blockhound-junit-platform`), so real Netty event loops in the ITs are covered too; `BlockHoundInstalledTest` proves it is active | unit + IT |

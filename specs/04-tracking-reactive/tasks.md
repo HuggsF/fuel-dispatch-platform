@@ -39,10 +39,17 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
 - [x] **04.8** ADR 0005 reactive read side (0004 is the outbox); README demo: `curl -N localhost:8082/api/v1/tracking/stream`
   while creating orders on 8081.
 - [ ] **04.9** Verify phase: `/spec-review 04`. **Milestone: publish the repository.**
-  - First review (2026-09-30) failed on TRK-1.4; re-run after 04.10.
+  - First review (2026-09-30) failed on TRK-1.4; re-run after 04.10 and 04.11.
 - [x] **04.10** Review fix: never commit an offset without saving
   - Test: `ConsumerFailureIT` — with MongoDB paused the offset is not committed and the event is
     saved after MongoDB resumes; an invalid payload is skipped without blocking the next event.
   - Code: `config.KafkaConsumerConfig` with a `DefaultErrorHandler` (unbounded exponential
     back-off, `InvalidOrderEventException` not retryable); design and ADR 0005 updated.
   - _Req: TRK-1.4_
+- [x] **04.11** Review fix: bounded SSE stream for slow clients
+  - Test: `TrackingStreamControllerTest` — with no demand, a client gets the change already in
+    flight and the latest, not the ones in between; a client that stops reading for 10 minutes is
+    not disconnected by a heartbeat overflow.
+  - Code: `TrackingStreamController` — `Flux.merge` with prefetch 1, heartbeats
+    `onBackpressureDrop()`; design and ADR 0005 wording corrected.
+  - _Req: TRK-3.3, TRK-3.4_

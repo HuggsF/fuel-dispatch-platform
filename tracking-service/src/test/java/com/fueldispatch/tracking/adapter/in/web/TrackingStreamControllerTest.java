@@ -13,8 +13,10 @@ import com.fueldispatch.tracking.domain.TrackingStatus;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -24,6 +26,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 
 /** HTTP contract of the live stream (TRK-3.x); the query is mocked. */
@@ -172,5 +175,60 @@ class TrackingStreamControllerTest {
                 .assertNext(event -> assertThat(event.event()).isEqualTo("status-changed"))
                 .thenCancel()
                 .verify(TIMEOUT);
+    }
+
+    // TRK-3.4 through the controller's stream: bounded per client, oldest pending changes dropped
+
+    @Test
+    void stream_clientWithoutDemand_getsInFlightAndLatestChangeOnly() {
+        Sinks.Many<OrderStatusChanged> sink = Sinks.many().multicast().directBestEffort();
+        // Same per-subscriber strategy as SinkStatusChangeNotifier.
+        when(streamStatusChangesQuery.streamChanges(Optional.empty()))
+                .thenReturn(sink.asFlux().onBackpressureLatest());
+        TrackingStreamController controller =
+                new TrackingStreamController(streamStatusChangesQuery);
+        List<OrderStatusChanged> changes =
+                IntStream.rangeClosed(1, 5).mapToObj(i -> change()).toList();
+
+        StepVerifier.create(controller.stream(Optional.empty()), 0)
+                .then(() -> changes.forEach(sink::tryEmitNext))
+                .thenRequest(10)
+                .assertNext(event -> assertThat(event.id()).isEqualTo(idOf(changes.get(0))))
+                .assertNext(event -> assertThat(event.id()).isEqualTo(idOf(changes.get(4))))
+                .expectNoEvent(Duration.ofMillis(100))
+                .thenCancel()
+                .verify(TIMEOUT);
+    }
+
+    // TRK-3.3: heartbeats must never end the stream of a client that stopped reading
+
+    @Test
+    void stream_clientNotReadingFor10Minutes_isNotTerminatedByHeartbeats() {
+        when(streamStatusChangesQuery.streamChanges(Optional.empty())).thenReturn(Flux.never());
+        TrackingStreamController controller =
+                new TrackingStreamController(streamStatusChangesQuery);
+
+        StepVerifier.withVirtualTime(() -> controller.stream(Optional.empty()), 0)
+                .expectSubscription()
+                .thenAwait(Duration.ofMinutes(10))
+                .thenRequest(1)
+                .assertNext(event -> assertThat(event.comment()).isEqualTo("heartbeat"))
+                .thenCancel()
+                .verify(TIMEOUT);
+    }
+
+    private static OrderStatusChanged change() {
+        return new OrderStatusChanged(
+                UUID.randomUUID(),
+                ORDER_ID,
+                Instant.parse("2026-10-05T14:03:22Z"),
+                TrackingStatus.APPROVED,
+                new OrderSummary(
+                        "MV Atlantic Star", "9321483", "B-03", "VLSFO", new BigDecimal("850.125")),
+                null);
+    }
+
+    private static String idOf(OrderStatusChanged change) {
+        return change.eventId().toString();
     }
 }

@@ -46,13 +46,18 @@ class TrackingStreamController {
                                                 .event(EVENT_NAME)
                                                 .id(change.eventId().toString())
                                                 .build());
+        // Flux.interval fails when it cannot emit; for a client that stops reading, drop the
+        // heartbeat instead of ending the stream (a missed heartbeat is harmless).
         Flux<ServerSentEvent<StatusChangeEvent>> heartbeats =
                 Flux.interval(HEARTBEAT_INTERVAL)
+                        .onBackpressureDrop()
                         .map(
                                 tick ->
                                         ServerSentEvent.<StatusChangeEvent>builder()
                                                 .comment("heartbeat")
                                                 .build());
-        return Flux.merge(changes, heartbeats);
+        // Prefetch 1: the merge queues at most one change per client, so a slow client gets the
+        // change in flight and then the latest one held by the notifier (TRK-3.4).
+        return Flux.merge(1, changes, heartbeats);
     }
 }

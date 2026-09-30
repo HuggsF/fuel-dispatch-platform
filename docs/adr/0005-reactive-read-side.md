@@ -42,8 +42,12 @@ and offsets matter, and an in-memory Reactor sink for the live feed.**
    fresh read.
 5. **In-memory fan-out with a per-client backpressure strategy.**
    `Sinks.many().multicast().directBestEffort()` replays nothing to late subscribers, and one slow
-   client never holds back the others. Each subscriber gets `onBackpressureLatest()`: while its
-   client is slow it keeps only the newest change (TRK-3.4). `publish` is `synchronized` because
+   client never holds back the others. Each subscriber gets `onBackpressureLatest()`, and the
+   controller merges changes with heartbeats at prefetch 1. A client that stops reading therefore
+   gets the change already in flight and then the newest one, and the ones in between are dropped
+   (TRK-3.4). This bound excludes what Reactor Netty and the socket buffer had already accepted.
+   Heartbeats drop instead of overflowing, because `Flux.interval` would otherwise end the stream
+   of a client that stopped reading for ~8 minutes. `publish` is `synchronized` because
    the sink rejects concurrent emissions. Subscribers hear only of `APPLIED` changes, and only
    after the save.
 6. **Guards.** ArchUnit applies dispatch-service's hexagonal rules. The one addition is that the
