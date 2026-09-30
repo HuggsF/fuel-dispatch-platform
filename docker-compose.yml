@@ -109,8 +109,11 @@ services:
     image: fuel-dispatch/tracking-service:local
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://${MONGO_USERNAME:-tracking}:${MONGO_PASSWORD:-tracking}@mongo:27017/tracking?authSource=admin
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
     depends_on:
       mongo:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     ports:
       - "8082:8082"

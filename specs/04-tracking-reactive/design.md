@@ -57,6 +57,24 @@ interface TrackingRepository {
   Spring Data types (structure.md). The service retries once on it (04.3).
 - The version is opaque to the application: it only passes it back.
 
+## Consuming events
+
+- `OrderEventListener` reads the value as a `String` (`StringDeserializer`, no Spring type
+  headers) and parses it into `OrderEventMessage`, a record written from the JSON Schema only
+  (TRK-4.2), `@JsonIgnoreProperties(ignoreUnknown = true)` as the contract requires of consumers.
+- Consumer: group `tracking-service`, `auto-offset-reset: earliest` (a new group rebuilds the view
+  from the topic), `enable-auto-commit: false`, `ack-mode: manual_immediate`. The listener blocks
+  on the use case (max 10 s) and calls `acknowledge()` only after it completes (TRK-1.4);
+  duplicates are acknowledged too.
+- A payload that is not valid JSON or misses a required field fails with
+  `InvalidOrderEventException`; any failure is rethrown without ack. Until phase 05 adds the DLT,
+  Spring Kafka's default error handler retries it 9 times and then logs and skips it.
+- The topic is declared by dispatch-service; tracking-service only subscribes.
+- `SinkStatusChangeNotifier` exists from 04.4 in a basic form (`multicast().directBestEffort()`,
+  `tryEmitNext`) so that the use case bean can be wired. Note for 04.6:
+  `multicast().onBackpressureBuffer()` would buffer changes while nobody is subscribed and replay
+  them to the first subscriber, which breaks "applied after the connection" (TRK-3.1).
+
 ## Persistence notes
 
 - `order_tracking` document: `_id` and event ids stored as UUID strings (readable in any client),
