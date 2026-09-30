@@ -18,10 +18,11 @@ WebFlux: GET /tracking/{id}, GET /tracking?status=  ◀── ReactiveMongo
 | --- | --- | --- |
 | `OrderTracking` | `domain` | Aggregate: `orderId`, summary, `currentStatus`, `lastOccurredAt`, `history`, `processedEventIds`; method `apply(OrderStatusChanged)` returns `ApplyResult` (APPLIED / DUPLICATE / OUT_OF_ORDER_RECORDED) |
 | `OrderStatusChanged`, `TrackingStatus`, `HistoryEntry` | `domain` | Own model; not shared with dispatch-service (TRK-4.2) |
-| `ApplyOrderEventUseCase`, `GetTrackingQuery`, `StreamStatusChangesQuery` | `application.port.in` | Return `Mono` / `Flux` |
+| `ApplyOrderEventUseCase`, `GetTrackingQuery`, `ListTrackingsQuery`, `StreamStatusChangesQuery` | `application.port.in` | `Mono<ApplyResult> apply(OrderStatusChanged)`, `Mono<OrderTracking> get(UUID)`, `Flux<OrderTracking> listByStatus(TrackingStatus)`, `Flux<OrderStatusChanged> streamChanges(Optional<UUID>)` |
+| `TrackingNotFoundException` | `application` | Error of `get` for an unknown order (TRK-2.2), like dispatch's `OrderNotFoundException` |
 | `TrackingRepository`, `VersionedTracking`, `ConcurrentTrackingUpdateException` | `application.port.out` | Reactive repository port; see "Optimistic locking" below |
-| `StatusChangeNotifier` | `application.port.out` | Reactive signature |
-| `TrackingApplicationService` | `application.service` | Loads or creates, applies, saves, notifies when APPLIED |
+| `StatusChangeNotifier` | `application.port.out` | `void publish(OrderStatusChanged)` (never blocks, never fails the caller), `Flux<OrderStatusChanged> changes()`; the SSE payload is the applied `OrderStatusChanged` |
+| `TrackingApplicationService` | `application.service` | Loads or creates, applies, saves (skipped for DUPLICATE), then notifies only when APPLIED and only after the save; retries once on `ConcurrentTrackingUpdateException` from a fresh read; other errors are not retried. No transactions (one document write). Plain class, bean created in `config` like dispatch's `UseCaseConfig` |
 | `OrderEventListener` | `adapter.in.messaging` | Spring Kafka `@KafkaListener`; deserializes the v1 envelope; calls the use case and `block(Duration.ofSeconds(10))` — allowed because it runs on the Kafka listener thread, not on Netty; manual ack after save |
 | `TrackingController` | `adapter.in.web` | Annotated WebFlux controller |
 | `MongoTrackingRepositoryAdapter`, `OrderTrackingDocument` | `adapter.out.persistence` | Collection `order_tracking`, `_id` = orderId, `@Version`; index on `currentStatus` |

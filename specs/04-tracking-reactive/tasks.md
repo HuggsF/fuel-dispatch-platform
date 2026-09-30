@@ -13,7 +13,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     (the adapter implements the port, so it moves here from 04.3), document, mapper, adapter,
     index creation.
   - _Req: TRK-1.1, TRK-2.1, TRK-2.3_
-- [ ] **04.3** Application service
+- [x] **04.3** Application service
   - Test: `TrackingApplicationServiceTest` — notifies only on APPLIED; retries once on version conflict.
   - Code: remaining ports (`port.in`, `StatusChangeNotifier`) + service.
   - _Req: TRK-1.1, TRK-1.2, TRK-1.3_
