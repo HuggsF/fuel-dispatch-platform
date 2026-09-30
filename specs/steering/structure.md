@@ -57,6 +57,11 @@ com.fueldispatch.<service>
 `application.service` may use `org.springframework.transaction.annotation.Transactional` and
 `org.springframework.stereotype.Service` — the only framework allowance in that layer.
 
+In `tracking-service` the whole `application` layer may also use Reactor's core types
+(`reactor.core..`, `reactor.util..`: `Mono`, `Flux`, `Retry`), because its ports are reactive.
+Reactor Netty and any web, persistence or messaging framework stay forbidden; the domain stays
+JDK-only in both services.
+
 ## Naming
 
 | Kind | Pattern | Example |

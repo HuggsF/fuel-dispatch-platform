@@ -34,7 +34,7 @@ Rules: one task = one commit. Test first. Tick only when `./mvnw verify` is gree
     subscriber test.
   - Code: `SinkStatusChangeNotifier`, stream endpoint.
   - _Req: TRK-3.1, TRK-3.2, TRK-3.3, TRK-3.4_
-- [ ] **04.7** Architecture guards: ArchUnit + BlockHound.
+- [x] **04.7** Architecture guards: ArchUnit + BlockHound.
   - _Req: TRK-4.1, TRK-NF-1_
 - [ ] **04.8** ADR 0004 reactive read side; README demo: `curl -N localhost:8082/api/v1/tracking/stream`
   while creating orders on 8081.

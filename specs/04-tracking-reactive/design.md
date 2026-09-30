@@ -91,6 +91,20 @@ interface TrackingRepository {
 - Errors are always written as `application/problem+json`, even when the request accepts only
   `text/event-stream`; otherwise the ProblemDetail would be encoded as an SSE event.
 
+## Architecture guards
+
+- ArchUnit rules as in dispatch-service, with one addition recorded in `structure.md`: the
+  `application` layer may use Reactor core types (`reactor.core..`, `reactor.util..`), never
+  Reactor Netty. A rule also forbids any dependency on `com.fueldispatch.dispatch..` (TRK-4.2).
+- BlockHound is installed in **all** tests of the module, not only WebFlux slices: `@WebFluxTest`
+  uses a mock server without Netty threads, while the ITs run real Netty event loops — including
+  the MongoDB driver's, which completes every call on a Netty event loop. Surefire and Failsafe
+  run with `-XX:+AllowRedefinitionToAddDeleteMethods` (required on Java 13+).
+- Allowed blocking lives in `TrackingBlockHoundIntegration` (test sources) with a reason per entry.
+  Only one so far: `SingletonSupplier.get`, the lazy lock of Actuator's repository metrics, which
+  BlockHound caught parking on a MongoDB event loop when two first calls raced; it is lock-free once
+  initialised.
+
 ## Persistence notes
 
 - `order_tracking` document: `_id` and event ids stored as UUID strings (readable in any client),
@@ -171,5 +185,5 @@ dispatch-service:
 | TRK-3.1, 3.2 end to end | `LiveStreamIT` — Kafka event reaches an SSE client of that order | IT |
 | TRK-1.4, end to end | `OrderEventListenerIT` — Testcontainers Kafka + MongoDB; publish contract examples; duplicate ignored | IT |
 | TRK-3.4 | `SinkStatusChangeNotifierTest` — slow subscriber does not block a fast one | unit |
-| TRK-4.1 | `HexagonalArchitectureTest` | unit |
-| TRK-NF-1 | BlockHound installed in WebFlux tests | slice |
+| TRK-4.1, TRK-4.2 | `HexagonalArchitectureTest` — dispatch-service's rules plus the Reactor allowance and "no `com.fueldispatch.dispatch..`"; each rule proven against `archfixture` violations | unit |
+| TRK-NF-1 | BlockHound in every test JVM of the module (`blockhound-junit-platform`), so real Netty event loops in the ITs are covered too; `BlockHoundInstalledTest` proves it is active | unit + IT |
