@@ -119,9 +119,13 @@ interface TrackingRepository {
   the MongoDB driver's, which completes every call on a Netty event loop. Surefire and Failsafe
   run with `-XX:+AllowRedefinitionToAddDeleteMethods` (required on Java 13+).
 - Allowed blocking lives in `TrackingBlockHoundIntegration` (test sources) with a reason per entry.
-  Only one so far: `SingletonSupplier.get`, the lazy lock of Actuator's repository metrics, which
-  BlockHound caught parking on a MongoDB event loop when two first calls raced; it is lock-free once
-  initialised.
+  Two, both framework code:
+  - `SingletonSupplier.get`, the lazy lock of Actuator's repository metrics. BlockHound caught it
+    parking on a MongoDB event loop when two first calls raced; it is lock-free once initialised.
+  - `ServerSessionPool.createNewServerSessionIdentifier` (MongoDB driver), which calls
+    `UUID.randomUUID()` on the event loop. On Linux that reads `/dev/urandom`, which never blocks
+    for entropy. Only CI caught it, because Windows' `SecureRandom` does no file I/O. CI on Linux
+    is therefore the authoritative BlockHound run.
 
 ## Persistence notes
 

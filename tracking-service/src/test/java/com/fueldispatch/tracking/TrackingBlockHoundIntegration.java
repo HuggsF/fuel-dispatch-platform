@@ -18,5 +18,14 @@ public class TrackingBlockHoundIntegration implements BlockHoundIntegration {
         // calls racing at startup can park briefly there once; afterwards get() is lock-free.
         builder.allowBlockingCallsInside(
                 "org.springframework.util.function.SingletonSupplier", "get");
+
+        // The MongoDB driver creates each pooled server session id with UUID.randomUUID() while
+        // encoding a command on a Netty event loop. On Linux, SecureRandom (NativePRNG) reads
+        // /dev/urandom through FileInputStream, which never blocks waiting for entropy and takes
+        // microseconds, once per new session. Windows uses another SecureRandom without file I/O,
+        // so only Linux (CI) sees this. Scoped to the driver's method, not to UUID.randomUUID().
+        builder.allowBlockingCallsInside(
+                "com.mongodb.internal.session.ServerSessionPool",
+                "createNewServerSessionIdentifier");
     }
 }

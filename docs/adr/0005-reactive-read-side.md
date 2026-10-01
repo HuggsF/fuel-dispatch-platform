@@ -92,9 +92,11 @@ and offsets matter, and an in-memory Reactor sink for the live feed.**
   skipped at once, so it cannot block its partition. Phase 05 sends it to a dead-letter topic
   instead. A payload that parses but always fails for another reason would be retried forever;
   the phase 05 DLT policy must decide when to give up on those.
-- **BlockHound allowances.** The only allowed blocking call is framework code (Actuator's lazy
-  `SingletonSupplier` lock), listed with its reason in `TrackingBlockHoundIntegration`. Any new
-  entry needs the same justification. `synchronized` in `publish` is outside BlockHound's view.
+- **BlockHound allowances.** Only framework code is allowed to block, each entry listed with its
+  reason in `TrackingBlockHoundIntegration`: Actuator's lazy `SingletonSupplier` lock, and the
+  MongoDB driver's session-id generation, which reads `/dev/urandom` on Linux. Any new entry needs
+  the same justification. Some blocking calls only exist on one OS; the second entry surfaced only
+  in CI on Linux, so CI is the authoritative BlockHound run. `synchronized` in `publish` is outside BlockHound's view.
   It stays safe only because the lock covers a hand-off, never I/O.
 - **Deduplication is bounded.** An order keeps its last 50 event ids, while a full lifecycle has at
   most 4. Raise the bound if events per order ever grow.
