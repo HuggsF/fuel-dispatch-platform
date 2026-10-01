@@ -34,6 +34,7 @@
         <springdoc.version>2.9.1</springdoc.version>
         <resilience4j.version>2.4.0</resilience4j.version>
         <archunit.version>1.5.1</archunit.version>
+        <blockhound.version>1.0.17.RELEASE</blockhound.version>
         <!-- 2.x is the last line on Jackson 2 (3.x moved to Jackson 3). -->
         <json-schema-validator.version>2.0.7</json-schema-validator.version>
 
@@ -75,6 +76,16 @@
                 <groupId>com.tngtech.archunit</groupId>
                 <artifactId>archunit-junit5</artifactId>
                 <version>${archunit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.projectreactor.tools</groupId>
+                <artifactId>blockhound</artifactId>
+                <version>${blockhound.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.projectreactor.tools</groupId>
+                <artifactId>blockhound-junit-platform</artifactId>
+                <version>${blockhound.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.networknt</groupId>

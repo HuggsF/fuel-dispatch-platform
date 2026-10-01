@@ -1,6 +1,27 @@
 spring:
   application:
     name: tracking-service
+  data:
+    mongodb:
+      # Local default matches docker-compose.yml; override with SPRING_DATA_MONGODB_URI.
+      uri: mongodb://tracking:tracking@localhost:27017/tracking?authSource=admin
+      # Creates the indexes declared on the documents (@Indexed) at startup.
+      auto-index-creation: true
+  # Local default matches docker-compose.yml; override with SPRING_KAFKA_BOOTSTRAP_SERVERS.
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: tracking-service
+      # A new consumer group reads the topic from the start, so the view is rebuilt from history.
+      auto-offset-reset: earliest
+      # Offsets are committed by the listener after the save, never automatically (TRK-1.4).
+      enable-auto-commit: false
+      # The event JSON is read as text and parsed by the listener, so no Spring type headers
+      # are needed or trusted (TRK-4.2).
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
 
 server:
   port: 8082
